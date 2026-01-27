@@ -1,13 +1,23 @@
 from typing import Union, Optional
 import os
 from pathlib import Path
+import httpx
+from datetime import datetime
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from invoice_pdf_generator import generate_invoice_pdf
+
 app = FastAPI()
+
+# API Configuration
+# Set API_BASE_URL environment variable for production
+# For production: https://readapi.accountingonweb.com
+# For development: https://localhost:7047 (default)
+API_BASE_URL = os.getenv("API_BASE_URL", "https://localhost:7047")
 
 # Add CORS middleware to allow Vue.js frontend
 app.add_middleware(
@@ -263,6 +273,18 @@ def read_item(item_id: int, q: Union[str, None] = None):
     return {"item_id": item_id, "q": q}
 
 
+@app.get("/health")
+async def health_check():
+    """
+    Health check endpoint for Docker and monitoring
+    """
+    return {
+        "status": "healthy",
+        "api_base_url": API_BASE_URL,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
     """
@@ -454,6 +476,84 @@ async def validation_exception_handler(request: Request, exc):
             "error": str(exc)
         }
     )
+
+
+@app.get("/generate-pdf/{transaction_id}")
+async def generate_transaction_pdf(transaction_id: str, paper_size: str = "A4"):
+    """
+    Generate PDF for a transaction by fetching data from the API
+    
+    Args:
+        transaction_id: The UUID of the transaction
+        paper_size: Paper size for PDF (A4 or A5), default is A4
+        
+    Returns:
+        JSON with download link and file information
+    """
+    try:
+        # API endpoint to fetch transaction data
+        api_url = f"{API_BASE_URL}/api/v2/reports/transaction-print/{transaction_id}"
+        
+        # Fetch transaction data from API
+        async with httpx.AsyncClient(verify=False) as client:  # verify=False to handle self-signed certs
+            try:
+                response = await client.get(api_url, timeout=30.0)
+                response.raise_for_status()
+                transaction_data = response.json()
+            except httpx.HTTPStatusError as e:
+                raise HTTPException(
+                    status_code=e.response.status_code,
+                    detail=f"Failed to fetch transaction data: {e.response.text}"
+                )
+            except httpx.RequestError as e:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Failed to connect to API: {str(e)}"
+                )
+        
+        # Prepare PDF generation options
+        options = {
+            'paper_size': paper_size,
+            'save_file': True,
+            'save_location': str(UPLOAD_DIR),
+            'filename': f"invoice_{transaction_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            'copy_types': ["ORIGINAL"]
+        }
+        
+        # Generate PDF
+        pdf_path = generate_invoice_pdf(transaction_data, options, preview=False)
+        pdf_file = Path(pdf_path)
+        
+        if not pdf_file.exists():
+            raise HTTPException(status_code=500, detail="PDF generation failed")
+        
+        # Get file size
+        file_size = pdf_file.stat().st_size
+        if file_size < 1024:
+            size_str = f"{file_size} B"
+        elif file_size < 1024 * 1024:
+            size_str = f"{file_size / 1024:.2f} KB"
+        else:
+            size_str = f"{file_size / (1024 * 1024):.2f} MB"
+        
+        # Return download information
+        return {
+            "status": "success",
+            "message": "PDF generated successfully",
+            "transaction_id": transaction_id,
+            "filename": pdf_file.name,
+            "file_size": size_str,
+            "download_url": f"/download/{pdf_file.name}",
+            "full_path": str(pdf_file.absolute())
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating PDF: {str(e)}"
+        )
 
 
 if __name__ == "__main__":
