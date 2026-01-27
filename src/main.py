@@ -1,7 +1,6 @@
-from typing import Union, Optional
 import os
 from pathlib import Path
-import httpx
+from typing import Union
 from datetime import datetime
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request, Form
@@ -10,14 +9,10 @@ from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from invoice_pdf_generator import generate_invoice_pdf
+from models import TransactionPrintDto
+
 
 app = FastAPI()
-
-# API Configuration
-# Set API_BASE_URL environment variable for production
-# For production: https://readapi.accountingonweb.com
-# For development: https://localhost:7047 (default)
-API_BASE_URL = os.getenv("API_BASE_URL", "https://localhost:7047")
 
 # Add CORS middleware to allow Vue.js frontend
 app.add_middleware(
@@ -280,7 +275,6 @@ async def health_check():
     """
     return {
         "status": "healthy",
-        "api_base_url": API_BASE_URL,
         "timestamp": datetime.now().isoformat()
     }
 
@@ -478,55 +472,62 @@ async def validation_exception_handler(request: Request, exc):
     )
 
 
-@app.get("/generate-pdf/{transaction_id}")
-async def generate_transaction_pdf(transaction_id: str, paper_size: str = "A4"):
+@app.post("/generate-pdf")
+async def generate_transaction_pdf(transaction_data: TransactionPrintDto, paper_size: str = "A4"):
     """
-    Generate PDF for a transaction by fetching data from the API
-    
+    Generate PDF for a transaction from the provided transaction data
+
     Args:
-        transaction_id: The UUID of the transaction
+        transaction_data: The complete transaction data (TransactionPrintDto)
         paper_size: Paper size for PDF (A4 or A5), default is A4
-        
+
     Returns:
         JSON with download link and file information
     """
     try:
-        # API endpoint to fetch transaction data
-        api_url = f"{API_BASE_URL}/api/v2/reports/transaction-print/{transaction_id}"
-        
-        # Fetch transaction data from API
-        async with httpx.AsyncClient(verify=False) as client:  # verify=False to handle self-signed certs
-            try:
-                response = await client.get(api_url, timeout=30.0)
-                response.raise_for_status()
-                transaction_data = response.json()
-            except httpx.HTTPStatusError as e:
-                raise HTTPException(
-                    status_code=e.response.status_code,
-                    detail=f"Failed to fetch transaction data: {e.response.text}"
-                )
-            except httpx.RequestError as e:
-                raise HTTPException(
-                    status_code=503,
-                    detail=f"Failed to connect to API: {str(e)}"
-                )
-        
+        # Get transaction identifier for filename (use invoice number, transaction number, or timestamp)
+        # Ensure we get a non-empty transaction_id
+        transaction_id = (
+            (transaction_data.transaction_header.invoice_number and
+             transaction_data.transaction_header.invoice_number.strip()) or
+            (transaction_data.transaction_header.transaction_number and
+             transaction_data.transaction_header.transaction_number.strip()) or
+            datetime.now().strftime('%Y%m%d_%H%M%S')
+        )
+
+        print(f"DEBUG: transaction_id = '{transaction_id}'")
+        print(f"DEBUG: invoice_number = '{transaction_data.transaction_header.invoice_number}'")
+        print(f"DEBUG: transaction_number = '{transaction_data.transaction_header.transaction_number}'")
+
+        # Convert Pydantic model to dict for PDF generator
+        # Use mode='json' to properly serialize UUID and Decimal types
+        transaction_dict = transaction_data.model_dump(mode='json', by_alias=True)
+
         # Prepare PDF generation options
+        filename = f"invoice_{transaction_id}.pdf"
+        print(f"DEBUG: filename = '{filename}'")
+
         options = {
             'paper_size': paper_size,
             'save_file': True,
             'save_location': str(UPLOAD_DIR),
-            'filename': f"invoice_{transaction_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            'filename': filename,
             'copy_types': ["ORIGINAL"]
         }
-        
+
+        print(f"DEBUG: save_location = '{UPLOAD_DIR}'")
+
         # Generate PDF
-        pdf_path = generate_invoice_pdf(transaction_data, options, preview=False)
+        pdf_path = generate_invoice_pdf(transaction_dict, options, preview=False)
         pdf_file = Path(pdf_path)
-        
+
+        print(f"DEBUG: pdf_path = '{pdf_path}'")
+        print(f"DEBUG: pdf_file.name = '{pdf_file.name}'")
+        print(f"DEBUG: pdf_file.exists() = {pdf_file.exists()}")
+
         if not pdf_file.exists():
             raise HTTPException(status_code=500, detail="PDF generation failed")
-        
+
         # Get file size
         file_size = pdf_file.stat().st_size
         if file_size < 1024:
@@ -535,18 +536,30 @@ async def generate_transaction_pdf(transaction_id: str, paper_size: str = "A4"):
             size_str = f"{file_size / 1024:.2f} KB"
         else:
             size_str = f"{file_size / (1024 * 1024):.2f} MB"
-        
-        # Return download information
-        return {
+
+        print(f"DEBUG: file_size = {file_size}, size_str = '{size_str}'")
+
+        # Construct download URL using the download_file endpoint
+        # This ensures the URL is consistent with the download_file method
+        download_url = f"/download/{pdf_file.name}"
+
+        print(f"DEBUG: download_url = '{download_url}'")
+
+        # Return download information with proper values
+        response_data = {
             "status": "success",
             "message": "PDF generated successfully",
             "transaction_id": transaction_id,
             "filename": pdf_file.name,
             "file_size": size_str,
-            "download_url": f"/download/{pdf_file.name}",
+            "download_url": download_url,
             "full_path": str(pdf_file.absolute())
         }
-        
+
+        print(f"DEBUG: Response data = {response_data}")
+
+        return response_data
+
     except HTTPException:
         raise
     except Exception as e:
@@ -558,4 +571,4 @@ async def generate_transaction_pdf(transaction_id: str, paper_size: str = "A4"):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8100)
