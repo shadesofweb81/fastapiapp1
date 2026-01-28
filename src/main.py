@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from invoice_pdf_generator import generate_invoice_pdf
-from models import TransactionPrintDto
+from models import TransactionPrintDto, PrintSettings
 
 
 app = FastAPI()
@@ -473,46 +473,81 @@ async def validation_exception_handler(request: Request, exc):
 
 
 @app.post("/generate-pdf")
-async def generate_transaction_pdf(transaction_data: TransactionPrintDto, paper_size: str = "A4"):
+async def generate_transaction_pdf(
+    transaction_data: TransactionPrintDto,
+    print_settings: PrintSettings = None
+):
     """
     Generate PDF for a transaction from the provided transaction data
 
     Args:
         transaction_data: The complete transaction data (TransactionPrintDto)
-        paper_size: Paper size for PDF (A4 or A5), default is A4
+        print_settings: Print settings including paper size, copies, and document types (PrintSettings)
 
     Returns:
         JSON with download link and file information
     """
     try:
-        # Get transaction identifier for filename (use invoice number, transaction number, or timestamp)
-        # Ensure we get a non-empty transaction_id
+        # Use default print settings if not provided
+        if print_settings is None:
+            print_settings = PrintSettings()
+
+        # Get transaction identifier for filename (use invoice number or transaction number)
+        # Always append datetime to ensure uniqueness
         transaction_id = (
             (transaction_data.transaction_header.invoice_number and
              transaction_data.transaction_header.invoice_number.strip()) or
             (transaction_data.transaction_header.transaction_number and
              transaction_data.transaction_header.transaction_number.strip()) or
-            datetime.now().strftime('%Y%m%d_%H%M%S')
+            "invoice"
         )
 
+        # Always append datetime to ensure each PDF is unique
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{transaction_id}_{timestamp}.pdf"
+
         print(f"DEBUG: transaction_id = '{transaction_id}'")
+        print(f"DEBUG: timestamp = '{timestamp}'")
         print(f"DEBUG: invoice_number = '{transaction_data.transaction_header.invoice_number}'")
         print(f"DEBUG: transaction_number = '{transaction_data.transaction_header.transaction_number}'")
+        print(f"DEBUG: filename = '{filename}'")
 
         # Convert Pydantic model to dict for PDF generator
         # Use mode='json' to properly serialize UUID and Decimal types
         transaction_dict = transaction_data.model_dump(mode='json', by_alias=True)
 
-        # Prepare PDF generation options
-        filename = f"invoice_{transaction_id}.pdf"
-        print(f"DEBUG: filename = '{filename}'")
+        # Process document types - convert to uppercase and use ORIGINAL as default if empty
+        base_copy_types = []
+        if print_settings.document_type and len(print_settings.document_type) > 0:
+            # Convert to uppercase (e.g., "original" -> "ORIGINAL")
+            base_copy_types = [doc_type.upper() for doc_type in print_settings.document_type]
+        else:
+            base_copy_types = ["ORIGINAL"]
+
+        # Repeat document types based on paper_copies
+        # e.g., if paper_copies=2 and document_type=["original", "duplicate"]
+        # then copy_types = ["ORIGINAL", "DUPLICATE", "ORIGINAL", "DUPLICATE"]
+        try:
+            num_copies = int(print_settings.paper_copies) if print_settings.paper_copies else 1
+            if num_copies < 1:
+                num_copies = 1
+        except ValueError:
+            num_copies = 1
+
+        copy_types = base_copy_types * num_copies
+
+        print(f"DEBUG: document_types from request = {print_settings.document_type}")
+        print(f"DEBUG: paper_copies = {print_settings.paper_copies}")
+        print(f"DEBUG: num_copies = {num_copies}")
+        print(f"DEBUG: base_copy_types = {base_copy_types}")
+        print(f"DEBUG: copy_types for PDF = {copy_types}")
 
         options = {
-            'paper_size': paper_size,
+            'paper_size': print_settings.paper_size,
             'save_file': True,
             'save_location': str(UPLOAD_DIR),
             'filename': filename,
-            'copy_types': ["ORIGINAL"]
+            'copy_types': copy_types
         }
 
         print(f"DEBUG: save_location = '{UPLOAD_DIR}'")

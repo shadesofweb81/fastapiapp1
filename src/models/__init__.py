@@ -12,6 +12,7 @@ from .dtos import (
     TransportPrintDto,
     BankDetailsPrintDto,
     TransactionPrintDto,
+    PrintSettings,
 )
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "TransportPrintDto",
     "BankDetailsPrintDto",
     "TransactionPrintDto",
+    "PrintSettings",
 ]
