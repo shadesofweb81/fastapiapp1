@@ -2,6 +2,7 @@
 Invoice PDF Generator - Generate professional invoice PDFs using ReportLab
 """
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from reportlab.lib import colors
@@ -135,19 +136,15 @@ class InvoicePDFGenerator:
         try:
             # Get invoice number from either location
             transaction_header = data.get('transactionHeader', {})
-            invoice_num = (
-                transaction_header.get('invoiceNumber') or 
-                transaction_header.get('transactionNumber') or 
-                data.get('invoiceNumber', 'invoice')
-            )
-            # Remove empty strings
-            if not invoice_num or invoice_num.strip() == '':
-                invoice_num = transaction_header.get('transactionNumber', 'invoice')
-            
+            invoice_num = transaction_header.get('invoiceNumber') or data.get('invoiceNumber', 'invoice')
+
+            # Sanitize invoice number for use in filename (remove invalid characters)
+            safe_invoice_num = re.sub(r'[\\/:*?"<>|]', '_', str(invoice_num))
+
             # Determine output path
             if preview:
                 output_dir = Path(os.environ.get('TEMP', '/tmp'))
-                filename = f"preview_{invoice_num}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                filename = f"preview_{safe_invoice_num}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             elif options.get('save_file'):
                 output_dir = Path(options.get('save_location'))
                 filename = options.get('filename')
@@ -155,8 +152,8 @@ class InvoicePDFGenerator:
                     filename += '.pdf'
             else:
                 output_dir = Path(os.environ.get('TEMP', '/tmp'))
-                filename = f"{invoice_num}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-            
+                filename = f"{safe_invoice_num}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+
             output_path = output_dir / filename
             
             # Set currency symbol from company data
@@ -188,7 +185,11 @@ class InvoicePDFGenerator:
             # Update instance page dimensions
             self.page_width, self.page_height = page_size
             self.paper_size_name = paper_size
-            
+
+            # Create PDF title for metadata
+            company_name = company.get('name') or company.get('companyName', 'Company')
+            pdf_title = f"Invoice {invoice_num} - {company_name}"
+
             # Create PDF document
             doc = SimpleDocTemplate(
                 str(output_path),
@@ -196,28 +197,37 @@ class InvoicePDFGenerator:
                 rightMargin=margins['right'],
                 leftMargin=margins['left'],
                 topMargin=margins['top'],
-                bottomMargin=margins['bottom']
+                bottomMargin=margins['bottom'],
+                title=pdf_title,
+                author=company_name,
+                subject=f"Invoice {invoice_num}"
             )
             
             # Determine which copy types to generate
             if preview:
                 copy_types = ["ORIGINAL"]
+                num_copies = 1
             else:
                 copy_types = options.get('copy_types', ["ORIGINAL"])
-            
+                num_copies = options.get('num_copies', 1)
+
             # Build PDF content
             story = []
-            
+
             # Store data for footer drawing
             self.footer_data = data
-            
-            for copy_type in copy_types:
-                if copy_types.index(copy_type) > 0:
-                    # Add page break between copies
-                    story.append(Spacer(1, 0))  # Will be handled by page break
-                
-                # Build content for this copy
-                story.extend(self._build_invoice_content(data, copy_type))
+
+            # Generate copies: repeat the copy_types pattern num_copies times
+            page_count = 0
+            for _ in range(num_copies):
+                for copy_type in copy_types:
+                    if page_count > 0:
+                        # Add page break between all pages except the first
+                        story.append(PageBreak())
+
+                    # Build content for this copy
+                    story.extend(self._build_invoice_content(data, copy_type))
+                    page_count += 1
             
             # Build PDF
             doc.build(story, onFirstPage=self._add_page_number, onLaterPages=self._add_page_number)
@@ -252,7 +262,7 @@ class InvoicePDFGenerator:
         # Use 3 columns: empty left spacer, centered title, right-aligned copy type
         # Content width = page_width - left_margin - right_margin (margins aligned with page border)
         content_width = self.page_width - (8*mm if self.paper_size_name == "A5" else 12*mm)
-        side_width = 20*mm * self.scale
+        side_width = 30*mm * self.scale  # Increased width to accommodate "TRIPLICATE" without wrapping
         center_width = content_width - 2*side_width
         
         title_table_data = [[
@@ -268,11 +278,11 @@ class InvoicePDFGenerator:
             ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
         ]))
         content.append(title_table)
-        
+
         # Company header - no spacing between title and company
         content.extend(self._build_company_header(data))
-        content.append(Spacer(1, 2*mm * self.scale))
-        
+        content.append(Spacer(1, 1*mm * self.scale))
+
         # Invoice details (left) and Party details (right)
         content.extend(self._build_details_section(data))
         content.append(Spacer(1, 2*mm * self.scale))
@@ -287,10 +297,7 @@ class InvoicePDFGenerator:
         
         # Combined section: Bank Details row + Terms & Conditions (left) | Authorized Signature (right)
         content.extend(self._build_signature_section(data))
-        
-        # Add page break for next copy
-        content.append(Spacer(1, 10*mm * self.scale))
-        
+
         return content
     
     def _build_company_header(self, data):
@@ -347,9 +354,8 @@ class InvoicePDFGenerator:
         # Tax/GSTIN line
         if gstin:
             content.append(Paragraph(f"GSTIN: {gstin}", self.styles['CompanyDetails']))
-        
-        # Add horizontal border line after company header
-        content.append(Spacer(1, 2*mm * self.scale))
+
+        # Add horizontal border line after company header (no spacer - tight spacing)
         content_width = self.page_width - (8*mm if self.paper_size_name == "A5" else 12*mm)
         line_table = Table([['']],  colWidths=[content_width])
         line_table.setStyle(TableStyle([
@@ -358,7 +364,7 @@ class InvoicePDFGenerator:
             ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
         ]))
         content.append(line_table)
-        
+
         return content
     
     def _build_details_section(self, data):
@@ -406,13 +412,7 @@ class InvoicePDFGenerator:
         
         # Left column - Invoice details
         invoice_details = []
-        invoice_no = (
-            transaction_header.get('invoiceNumber') or 
-            transaction_header.get('transactionNumber') or 
-            data.get('invoiceNumber', 'N/A')
-        )
-        if not invoice_no or invoice_no.strip() == '':
-            invoice_no = transaction_header.get('transactionNumber', 'N/A')
+        invoice_no = transaction_header.get('invoiceNumber') or data.get('invoiceNumber', 'N/A')
         invoice_details.append(('Invoice No', f"<b>{invoice_no}</b>"))
         
         trans_date = transaction_header.get('transactionDate') or data.get('transactionDate', '')
@@ -557,12 +557,12 @@ class InvoicePDFGenerator:
             serial_no = item.get('serialNumber') if item.get('serialNumber') else idx
             description = item.get('description') or item.get('productName', '')
             hsn_code = item.get('hsnCode', '')
-            quantity = item.get('quantity', 0)
+            quantity = float(item.get('quantity', 0) or 0)
             unit = item.get('unit') or item.get('unitName', '')
-            unit_price = item.get('unitPrice', 0)
-            discount_amount = item.get('discountAmount', 0)
-            line_total = item.get('lineTotal', 0)
-            
+            unit_price = float(item.get('unitPrice', 0) or 0)
+            discount_amount = float(item.get('discountAmount', 0) or 0)
+            line_total = float(item.get('lineTotal', 0) or 0)
+
             # Format quantity with unit
             qty_display = f"{quantity:.2f} {unit}" if unit else f"{quantity:.2f}"
             
@@ -648,14 +648,14 @@ class InvoicePDFGenerator:
         totals_data = []
         
         # Subtotal
-        subtotal = summary.get('subTotal', 0)
+        subtotal = float(summary.get('subTotal', 0) or 0)
         totals_data.append([
             Paragraph('<b>Subtotal:</b>', self.styles['Label']),
             Paragraph(f"{self.currency_symbol}{subtotal:,.2f}", self.styles['Value'])
         ])
-        
+
         # Discount
-        discount = summary.get('totalDiscountAmount') or summary.get('discount', 0)
+        discount = float(summary.get('totalDiscountAmount') or summary.get('discount', 0) or 0)
         if discount > 0:
             totals_data.append([
                 Paragraph('Discount:', self.styles['Value']),
@@ -663,13 +663,13 @@ class InvoicePDFGenerator:
             ])
         
         # Freight
-        freight = summary.get('freight', 0)
+        freight = float(summary.get('freight', 0) or 0)
         if freight > 0:
             totals_data.append([
                 Paragraph('Freight:', self.styles['Value']),
                 Paragraph(f"{self.currency_symbol}{freight:,.2f}", self.styles['Value'])
             ])
-        
+
         # Taxes - use tax components summary if available
         tax_components_summary = summary.get('taxComponentsSummary', [])
         if tax_components_summary:
@@ -677,17 +677,17 @@ class InvoicePDFGenerator:
                 Paragraph('<b>Taxes:</b>', self.styles['Label']),
                 Paragraph('', self.styles['Value'])
             ])
-            
+
             for comp in tax_components_summary:
                 comp_name = comp.get('componentName', '')
                 comp_type = comp.get('componentType', '')
-                rate = comp.get('rate', 0)
-                amount = comp.get('amount', 0)
-                
+                rate = float(comp.get('rate', 0) or 0)
+                amount = float(comp.get('amount', 0) or 0)
+
                 label = f"{comp_name} ({comp_type})" if comp_type else comp_name
                 if rate > 0:
                         label += f" @ {rate}%"
-                
+
                 totals_data.append([
                     Paragraph(f"  {label}:", self.styles['Value']),
                     Paragraph(f"{self.currency_symbol}{amount:,.2f}", self.styles['Value'])
@@ -708,8 +708,8 @@ class InvoicePDFGenerator:
                     if components:
                         for comp in components:
                             comp_name = comp.get('componentName', '')
-                            rate = comp.get('rate', 0)
-                            amount = comp.get('amount', 0)
+                            rate = float(comp.get('rate', 0) or 0)
+                            amount = float(comp.get('amount', 0) or 0)
                             label = f"{comp_name} @ {rate}%"
                             totals_data.append([
                                 Paragraph(f"  {label}:", self.styles['Value']),
@@ -717,22 +717,22 @@ class InvoicePDFGenerator:
                             ])
                     else:
                         # Single tax without components
-                        tax_amount = tax.get('taxAmount') or tax.get('amount', 0)
+                        tax_amount = float(tax.get('taxAmount') or tax.get('amount', 0) or 0)
                         totals_data.append([
                             Paragraph(f"  {tax_name}:", self.styles['Value']),
                             Paragraph(f"{self.currency_symbol}{tax_amount:,.2f}", self.styles['Value'])
                         ])
         
         # Round off
-        roundoff = summary.get('roundOff', 0)
+        roundoff = float(summary.get('roundOff', 0) or 0)
         if roundoff != 0:
             totals_data.append([
                 Paragraph('Round Off:', self.styles['Value']),
                 Paragraph(f"{self.currency_symbol}{roundoff:,.2f}", self.styles['Value'])
             ])
-        
+
         # Grand total
-        total = summary.get('total', 0)
+        total = float(summary.get('total', 0) or 0)
         totals_data.append([
             Paragraph('<b>Grand Total:</b>', self.styles['Label']),
             Paragraph(f"{self.currency_symbol}{total:,.2f}", self.styles['Value'])

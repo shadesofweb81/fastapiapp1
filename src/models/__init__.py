@@ -9,6 +9,8 @@ from .dtos import (
     TransactionTaxPrintDto,
     TaxComponentSummaryDto,
     TransactionSummaryDto,
+    TransportPrintDto,
+    BankDetailsPrintDto,
     TransactionPrintDto,
 )
 
@@ -23,5 +25,7 @@ __all__ = [
     "TransactionTaxPrintDto",
     "TaxComponentSummaryDto",
     "TransactionSummaryDto",
+    "TransportPrintDto",
+    "BankDetailsPrintDto",
     "TransactionPrintDto",
 ]
