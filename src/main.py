@@ -34,8 +34,28 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".pdf"}
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 def read_root():
+    """
+    Home page - returns basic API information
+    """
+    return {
+        "name": "FastAPI PDF & Image Service",
+        "version": "1.0.0",
+        "endpoints": {
+            "images": "/api/images/",
+            "pdf": "/api/pdf/",
+            "upload_ui": "/upload",
+            "health": "/health"
+        }
+    }
+
+
+@app.get("/upload", response_class=HTMLResponse)
+def upload_page():
+    """
+    HTML file upload and management interface
+    """
     html_content = """
     <!DOCTYPE html>
     <html lang="en">
@@ -185,7 +205,7 @@ def read_root():
         <script>
             async function loadFiles() {
                 try {
-                    const response = await fetch('/files');
+                    const response = await fetch('/api/images/files');
                     const data = await response.json();
                     const fileGrid = document.getElementById('fileGrid');
                     
@@ -236,7 +256,7 @@ def read_root():
                 statusDiv.innerHTML = '<p style="color: blue;">Uploading...</p>';
                 
                 try {
-                    const response = await fetch('/upload/multiple/', {
+                    const response = await fetch('/api/images/upload/multiple/', {
                         method: 'POST',
                         body: formData
                     });
@@ -251,7 +271,7 @@ def read_root():
             }
 
             function downloadFile(filename) {
-                window.location.href = `/download/${filename}`;
+                window.location.href = `/api/images/download/${filename}`;
             }
 
             // Load files on page load
@@ -279,7 +299,7 @@ async def health_check():
     }
 
 
-@app.post("/upload/")
+@app.post("/api/images/upload/")
 async def upload_file(file: UploadFile = File(...)):
     """
     Upload an image or PDF file
@@ -324,7 +344,7 @@ async def upload_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
 
 
-@app.post("/upload/multiple/")
+@app.post("/api/images/upload/multiple/")
 async def upload_multiple_files(files: list[UploadFile] = File(...)):
     """
     Upload multiple images or PDF files
@@ -378,7 +398,7 @@ async def upload_multiple_files(files: list[UploadFile] = File(...)):
     }
 
 
-@app.get("/files")
+@app.get("/api/images/files")
 async def list_files():
     """
     List all uploaded images and PDFs with metadata
@@ -411,7 +431,7 @@ async def list_files():
                     "extension": file_extension,
                     "full_path": str(file_path.absolute()),
                     "url_path": f"/uploads/{file_path.name}",
-                    "download_url": f"/download/{file_path.name}"
+                    "download_url": f"/api/images/download/{file_path.name}"
                 })
     
     # Sort by filename
@@ -423,7 +443,7 @@ async def list_files():
     }
 
 
-@app.get("/download/{filename}")
+@app.get("/api/images/download/{filename}")
 async def download_file(filename: str):
     """
     Download a specific file
@@ -472,7 +492,7 @@ async def validation_exception_handler(request: Request, exc):
     )
 
 
-@app.post("/generate-pdf")
+@app.post("/api/pdf/generate-pdf")
 async def generate_transaction_pdf(
     transaction_data: TransactionPrintDto,
     print_settings: PrintSettings = None
@@ -576,7 +596,7 @@ async def generate_transaction_pdf(
 
         # Construct download URL using the download_file endpoint
         # This ensures the URL is consistent with the download_file method
-        download_url = f"/download/{pdf_file.name}"
+        download_url = f"/api/images/download/{pdf_file.name}"
 
         print(f"DEBUG: download_url = '{download_url}'")
 
