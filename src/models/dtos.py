@@ -216,6 +216,7 @@ class PrintSettings(BaseModel):
     paper_copies: str = Field(default="1", alias="paperCopies")
     document_type: List[str] = Field(default_factory=list, alias="documentType")
     save_path: str = Field(default="", alias="savePath")
+    template: str = Field(default="default", alias="template")  # default, template_1, etc.
 
     class Config:
         populate_by_name = True

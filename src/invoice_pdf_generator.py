@@ -1,12 +1,13 @@
 """
-Invoice PDF Generator - Generate professional invoice PDFs using ReportLab
+Invoice PDF Generator - Generate professional invoice PDFs using ReportLab (A4 only)
+For A5 paper size, use invoice_pdf_generator_a5.py
 """
 import os
 import re
 from datetime import datetime
 from pathlib import Path
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, A5
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import inch, mm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
@@ -16,20 +17,13 @@ from reportlab.pdfgen import canvas
 
 
 class InvoicePDFGenerator:
-    """Generate professional invoice PDFs"""
+    """Generate professional invoice PDFs for A4 paper size"""
     
-    def __init__(self, paper_size="A4"):
-        # Set page size based on parameter
-        if paper_size == "A5":
-            self.page_size = A5
-            self.scale = 0.7  # Scale factor for A5 (roughly half of A4)
-        else:
-            self.page_size = A4
-            self.scale = 1.0  # No scaling for A4
+    def __init__(self):
+        self.page_size = A4
         self.page_width, self.page_height = self.page_size
-        self.paper_size_name = paper_size
         self.styles = getSampleStyleSheet()
-        self._create_custom_styles(paper_size)
+        self._create_custom_styles()
         self.currency_symbol = 'Rs.'  # Default currency symbol
         # Currency symbol mappings for better display
         self.currency_map = {
@@ -42,17 +36,13 @@ class InvoicePDFGenerator:
             'CAD': 'C$'
         }
     
-    def _create_custom_styles(self, paper_size="A4"):
-        """Create custom paragraph styles based on paper size"""
-        # Adjust font sizes for A5 (scale to ~70%)
-        is_a5 = paper_size == "A5"
-        size_factor = 0.7 if is_a5 else 1.0
-        
+    def _create_custom_styles(self):
+        """Create custom paragraph styles for A4 paper size"""
         # Company name style
         self.styles.add(ParagraphStyle(
             name='CompanyName',
             parent=self.styles['Heading1'],
-            fontSize=int(18 * size_factor),
+            fontSize=18,
             textColor=colors.HexColor('#1a5490'),
             spaceAfter=0,
             spaceBefore=0,
@@ -64,7 +54,7 @@ class InvoicePDFGenerator:
         self.styles.add(ParagraphStyle(
             name='CompanyDetails',
             parent=self.styles['Normal'],
-            fontSize=int(9 * size_factor),
+            fontSize=9,
             textColor=colors.HexColor('#444444'),
             alignment=TA_CENTER,
             spaceAfter=0,
@@ -75,7 +65,7 @@ class InvoicePDFGenerator:
         self.styles.add(ParagraphStyle(
             name='DocumentTitle',
             parent=self.styles['Heading1'],
-            fontSize=int(16 * size_factor),
+            fontSize=16,
             textColor=colors.HexColor('#1a5490'),
             spaceAfter=0,
             spaceBefore=0,
@@ -87,10 +77,9 @@ class InvoicePDFGenerator:
         self.styles.add(ParagraphStyle(
             name='SectionHeader',
             parent=self.styles['Normal'],
-            fontSize=int(10 * size_factor),
+            fontSize=10,
             textColor=colors.white,
-            # backColor removed for no background color
-            spaceAfter=int(6 * size_factor),
+            spaceAfter=6,
             fontName='Helvetica-Bold'
         ))
         
@@ -98,7 +87,7 @@ class InvoicePDFGenerator:
         self.styles.add(ParagraphStyle(
             name='Label',
             parent=self.styles['Normal'],
-            fontSize=int(9 * size_factor),
+            fontSize=9,
             textColor=colors.HexColor('#666666'),
             fontName='Helvetica-Bold'
         ))
@@ -107,7 +96,7 @@ class InvoicePDFGenerator:
         self.styles.add(ParagraphStyle(
             name='Value',
             parent=self.styles['Normal'],
-            fontSize=int(9 * size_factor),
+            fontSize=9,
             textColor=colors.HexColor('#000000')
         ))
         
@@ -115,7 +104,7 @@ class InvoicePDFGenerator:
         self.styles.add(ParagraphStyle(
             name='CopyType',
             parent=self.styles['Normal'],
-            fontSize=int(9 * size_factor),
+            fontSize=9,
             textColor=colors.HexColor('#d32f2f'),
             alignment=TA_RIGHT,
             fontName='Helvetica-Bold'
@@ -123,7 +112,7 @@ class InvoicePDFGenerator:
     
     def generate_invoice_pdf(self, data, options, preview=False):
         """
-        Generate invoice PDF
+        Generate invoice PDF for A4 paper
         
         Args:
             data: Dictionary containing invoice data
@@ -169,22 +158,8 @@ class InvoicePDFGenerator:
             else:
                 self.currency_symbol = 'Rs.'  # Default fallback
             
-            # Get paper size from options
-            paper_size = options.get('paper_size', 'A4')
-            if paper_size == "A5":
-                page_size = A5
-                self.scale = 0.7
-                # Minimal margins - larger bottom for footer with bank details
-                margins = {'right': 1*mm, 'left': 1*mm, 'top': 1*mm, 'bottom': 60*mm}
-            else:
-                page_size = A4
-                self.scale = 1.0
-                # Minimal margins - larger bottom for footer with bank details
-                margins = {'right': 1*mm, 'left': 1*mm, 'top': 1*mm, 'bottom': 65*mm}
-            
-            # Update instance page dimensions
-            self.page_width, self.page_height = page_size
-            self.paper_size_name = paper_size
+            # A4 margins - larger bottom for footer with bank details
+            margins = {'right': 1*mm, 'left': 1*mm, 'top': 1*mm, 'bottom': 65*mm}
 
             # Create PDF title for metadata
             company_name = company.get('name') or company.get('companyName', 'Company')
@@ -193,7 +168,7 @@ class InvoicePDFGenerator:
             # Create PDF document
             doc = SimpleDocTemplate(
                 str(output_path),
-                pagesize=page_size,
+                pagesize=A4,
                 rightMargin=margins['right'],
                 leftMargin=margins['left'],
                 topMargin=margins['top'],
@@ -260,9 +235,8 @@ class InvoicePDFGenerator:
         
         # Title centered with copy type on far right only
         # Use 3 columns: empty left spacer, centered title, right-aligned copy type
-        # Content width = page_width - left_margin - right_margin (margins aligned with page border)
-        content_width = self.page_width - (8*mm if self.paper_size_name == "A5" else 12*mm)
-        side_width = 30*mm * self.scale  # Increased width to accommodate "TRIPLICATE" without wrapping
+        content_width = self.page_width - 12*mm
+        side_width = 30*mm
         center_width = content_width - 2*side_width
         
         title_table_data = [[
@@ -281,19 +255,19 @@ class InvoicePDFGenerator:
 
         # Company header - no spacing between title and company
         content.extend(self._build_company_header(data))
-        content.append(Spacer(1, 1*mm * self.scale))
+        content.append(Spacer(1, 1*mm))
 
         # Invoice details (left) and Party details (right)
         content.extend(self._build_details_section(data))
-        content.append(Spacer(1, 2*mm * self.scale))
+        content.append(Spacer(1, 2*mm))
         
         # Items table
         content.extend(self._build_items_table(data))
-        content.append(Spacer(1, 2*mm * self.scale))
+        content.append(Spacer(1, 2*mm))
         
         # Totals section with amount in words
         content.extend(self._build_totals_section(data))
-        content.append(Spacer(1, 2*mm * self.scale))
+        content.append(Spacer(1, 2*mm))
         
         # Combined section: Bank Details row + Terms & Conditions (left) | Authorized Signature (right)
         content.extend(self._build_signature_section(data))
@@ -356,7 +330,7 @@ class InvoicePDFGenerator:
             content.append(Paragraph(f"GSTIN: {gstin}", self.styles['CompanyDetails']))
 
         # Add horizontal border line after company header (no spacer - tight spacing)
-        content_width = self.page_width - (8*mm if self.paper_size_name == "A5" else 12*mm)
+        content_width = self.page_width - 12*mm
         line_table = Table([['']],  colWidths=[content_width])
         line_table.setStyle(TableStyle([
             ('LINEBELOW', (0, 0), (-1, -1), 1, colors.HexColor('#1a5490')),
@@ -377,9 +351,7 @@ class InvoicePDFGenerator:
         transport_data = data.get('transport', {})
         
         # Calculate column width - use full available content width
-        # Document margins are aligned with page border
-        # Content width = page_width - left_margin - right_margin
-        content_width = self.page_width - (8*mm if self.paper_size_name == "A5" else 12*mm)
+        content_width = self.page_width - 12*mm
         col_width = content_width / 2
         
         # === ROW 1: Invoice Details and Transport Details ===
@@ -387,7 +359,7 @@ class InvoicePDFGenerator:
         def create_details_table(details_list, title, label_width=None):
             """Create a formatted table with label: value pairs"""
             if label_width is None:
-                label_width = 22*mm * self.scale
+                label_width = 22*mm
             table_data = []
             table_data.append([Paragraph(f"<b>{title}</b>", self.styles['Label']), ''])
             for label, value in details_list:
@@ -396,7 +368,7 @@ class InvoicePDFGenerator:
                     Paragraph(str(value), self.styles['Value'])
                 ])
             
-            value_width = col_width - label_width - 4*mm * self.scale  # padding
+            value_width = col_width - label_width - 4*mm  # padding
             tbl = Table(table_data, colWidths=[label_width, value_width])
             tbl.setStyle(TableStyle([
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
@@ -430,9 +402,8 @@ class InvoicePDFGenerator:
         if trans_no:
             invoice_details.append(('Transaction No', trans_no))
         
-        # Make Invoice Details value column wider for long names
         # Make invoice label column wider so labels fit on one line
-        invoice_label_width = 28*mm * self.scale  # wider label column for long labels
+        invoice_label_width = 28*mm
         invoice_table = create_details_table(invoice_details, 'Invoice Details', label_width=invoice_label_width)
         
         # Right column - Transport details
@@ -454,7 +425,7 @@ class InvoicePDFGenerator:
             transport_details.append(('Loading Station', loading_station))
         
         # Make transport label column wider so labels fit on one line
-        transport_label_width = 32*mm * self.scale  # wider label column for long labels
+        transport_label_width = 32*mm
         transport_table = create_details_table(transport_details, 'Transport Details', label_width=transport_label_width)
         
         # Create table for Invoice and Transport details
@@ -465,7 +436,7 @@ class InvoicePDFGenerator:
             ('RIGHTPADDING', (0, 0), (-1, -1), 2),
         ]))
         content.append(row1_table)
-        content.append(Spacer(1, 2*mm * self.scale))
+        content.append(Spacer(1, 2*mm))
         
         # === ROW 2: Billing Address and Shipping Address ===
         party_name = party_data.get('name') or data.get('partyName', 'N/A')
@@ -496,8 +467,8 @@ class InvoicePDFGenerator:
             if phone:
                 table_data.append([Paragraph('Phone:', self.styles['Label']), Paragraph(phone, self.styles['Value'])])
             
-            label_width = 18*mm * self.scale
-            value_width = col_width - label_width - 4*mm * self.scale
+            label_width = 18*mm
+            value_width = col_width - label_width - 4*mm
             tbl = Table(table_data, colWidths=[label_width, value_width])
             tbl.setStyle(TableStyle([
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
@@ -576,9 +547,8 @@ class InvoicePDFGenerator:
                 Paragraph(f"{line_total:,.2f}", self.styles['Value'])
             ])
         
-        # Create table with dynamic column widths based on paper size
-        # Use full content width - margins are now aligned with page border
-        content_width = self.page_width - (8*mm if self.paper_size_name == "A5" else 12*mm)
+        # Create table with dynamic column widths for A4
+        content_width = self.page_width - 12*mm
         
         # Column proportions: S.No(5%), Description(37%), HSN(10%), Qty(12%), UnitPrice(13%), Discount(10%), Amount(13%)
         col_widths = [
@@ -593,23 +563,16 @@ class InvoicePDFGenerator:
         
         items_table = Table(table_data, colWidths=col_widths)
         
-        # Scale font sizes and padding for A5
-        header_font_size = int(9 * self.scale) if self.scale < 1 else 9
-        data_font_size = int(8 * self.scale) if self.scale < 1 else 8
-        cell_padding = int(4 * self.scale) if self.scale < 1 else 4
-        
         items_table.setStyle(TableStyle([
-            # Header row (no background)
-            # ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5490')),
-            # ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            # Header row
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), header_font_size),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), cell_padding + 2),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
             
             # Data rows
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), data_font_size),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
             ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # S.No center
             ('ALIGN', (3, 1), (6, -1), 'RIGHT'),  # Numbers right-aligned
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -619,13 +582,12 @@ class InvoicePDFGenerator:
             # Internal grid lines
             ('LINEBELOW', (0, 0), (-1, -2), 0.5, colors.grey),  # Horizontal lines between rows
             ('LINEAFTER', (0, 0), (-2, -1), 0.5, colors.grey),  # Vertical lines between columns
-            # ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
             
-            # Padding - default for middle columns
-            ('LEFTPADDING', (0, 0), (-1, -1), cell_padding),
-            ('RIGHTPADDING', (0, 0), (-1, -1), cell_padding),
-            ('TOPPADDING', (0, 0), (-1, -1), cell_padding - 1),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), cell_padding - 1),
+            # Padding
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
             
             # Small left padding for first column (S.No)
             ('LEFTPADDING', (0, 0), (0, -1), 2),
@@ -739,13 +701,12 @@ class InvoicePDFGenerator:
         ])
         
         # Create table with wider columns
-        totals_table = Table(totals_data, colWidths=[45*mm * self.scale, 35*mm * self.scale])
-        totals_font_size = int(9 * self.scale) if self.scale < 1 else 9
+        totals_table = Table(totals_data, colWidths=[45*mm, 35*mm])
         totals_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
             ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
             ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), totals_font_size),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
             ('TOPPADDING', (0, 0), (-1, -1), 2),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
             ('LEFTPADDING', (0, 0), (-1, -1), 4),
@@ -757,7 +718,7 @@ class InvoicePDFGenerator:
         ]))
         
         # Create container to right-align the totals table
-        content_width = self.page_width - (8*mm if self.paper_size_name == "A5" else 12*mm)
+        content_width = self.page_width - 12*mm
         totals_container = Table([[totals_table]], colWidths=[content_width])
         totals_container.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
@@ -767,10 +728,9 @@ class InvoicePDFGenerator:
         
         content.append(totals_container)
         
-        # Amount in words - with left margin to stay inside border
+        # Amount in words
         amount_in_words = self._number_to_words(total)
-        content.append(Spacer(1, 2*mm * self.scale))
-        margin_offset = 6*mm if self.paper_size_name == "A5" else 8*mm
+        content.append(Spacer(1, 2*mm))
         content.append(Paragraph(f"&nbsp;&nbsp;&nbsp;<b>Amount in Words:</b> {self.currency_symbol} {amount_in_words} Only", self.styles['Value']))
         
         return content
@@ -860,16 +820,14 @@ class InvoicePDFGenerator:
         """Add page number, border, and footer to each page"""
         page_num = canvas_obj.getPageNumber()
         text = f"Page {page_num}"
-        font_size = 6 if self.paper_size_name == "A5" else 8
-        canvas_obj.setFont('Helvetica', font_size)
+        canvas_obj.setFont('Helvetica', 8)
         canvas_obj.setFillColor(colors.grey)
-        margin_offset = 10*mm if self.paper_size_name == "A5" else 15*mm
-        canvas_obj.drawRightString(self.page_width - margin_offset, 4*mm, text)
+        canvas_obj.drawRightString(self.page_width - 15*mm, 4*mm, text)
         
         # Draw border around the page
         canvas_obj.setStrokeColor(colors.HexColor('#1a5490'))
         canvas_obj.setLineWidth(1)
-        margin = 3*mm if self.paper_size_name == "A5" else 5*mm
+        margin = 5*mm
         canvas_obj.rect(
             margin, 
             margin, 
@@ -897,17 +855,17 @@ class InvoicePDFGenerator:
         branch = bank_details.get('branch') or company.get('branch', '')
         upi_id = bank_details.get('upiId') or company.get('upiId', '')
         
-        # Calculate positions
-        margin = 3*mm if self.paper_size_name == "A5" else 5*mm
+        # Calculate positions for A4
+        margin = 5*mm
         content_margin = margin + 1*mm
-        footer_top = 58*mm if self.paper_size_name == "A5" else 62*mm
-        terms_top = 32*mm if self.paper_size_name == "A5" else 35*mm  # Where terms/auth row starts - closer to bank details
+        footer_top = 62*mm
+        terms_top = 35*mm
         content_width = self.page_width - 2*content_margin
         half_width = content_width / 2
         
-        # Font sizes
-        label_font_size = int(8 * self.scale) if self.scale < 1 else 8
-        value_font_size = int(7 * self.scale) if self.scale < 1 else 7
+        # Font sizes for A4
+        label_font_size = 8
+        value_font_size = 7
         
         mid_x = self.page_width / 2
         
@@ -1007,7 +965,7 @@ class InvoicePDFGenerator:
         
         # Signature line
         y_pos = margin + 14*mm
-        line_width = 45*mm * self.scale
+        line_width = 45*mm
         canvas_obj.setStrokeColor(colors.black)
         canvas_obj.setLineWidth(0.5)
         canvas_obj.line(sig_center_x - line_width/2, y_pos, sig_center_x + line_width/2, y_pos)
@@ -1023,7 +981,7 @@ class InvoicePDFGenerator:
 
 def generate_invoice_pdf(data, options, preview=False):
     """
-    Wrapper function to generate invoice PDF
+    Wrapper function to generate invoice PDF for A4 paper
     
     Args:
         data: Invoice data dictionary
@@ -1033,7 +991,5 @@ def generate_invoice_pdf(data, options, preview=False):
     Returns:
         Path to generated PDF file
     """
-    # Create generator with the correct paper size from options
-    paper_size = options.get('paper_size', 'A4')
-    generator = InvoicePDFGenerator(paper_size)
+    generator = InvoicePDFGenerator()
     return generator.generate_invoice_pdf(data, options, preview)

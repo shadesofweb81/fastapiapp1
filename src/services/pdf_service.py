@@ -5,6 +5,8 @@ from fastapi import HTTPException
 from fastapi.responses import FileResponse
 
 from invoice_pdf_generator import generate_invoice_pdf
+from invoice_pdf_generator_a5 import generate_invoice_pdf_a5
+from invoice_pdf_a4_template_1 import generate_invoice_pdf_template_1
 from models import TransactionPrintDto, PrintSettings
 
 
@@ -53,6 +55,10 @@ class PDFService:
                 "invoice"
             )
 
+            # Sanitize transaction_id - remove invalid filename characters and spaces
+            import re
+            transaction_id = re.sub(r'[\\/:*?"<>|\s]+', '_', str(transaction_id)).strip('_')
+
             # Always append datetime to ensure each PDF is unique
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"{transaction_id}_{timestamp}.pdf"
@@ -92,8 +98,18 @@ class PDFService:
 
             print(f"DEBUG: save_location = '{self.upload_dir}'")
 
-            # Generate PDF
-            pdf_path = generate_invoice_pdf(transaction_dict, options, preview=False)
+            # Generate PDF based on paper_size and template
+            template = getattr(print_settings, 'template', 'default').lower()
+            
+            if print_settings.paper_size.upper() == "A5":
+                # A5 paper size
+                pdf_path = generate_invoice_pdf_a5(transaction_dict, options, preview=False)
+            elif template == "original":
+                # Original A4 template
+                pdf_path = generate_invoice_pdf(transaction_dict, options, preview=False)
+            else:
+                # Default A4 template (Template 1 - Busy style)
+                pdf_path = generate_invoice_pdf_template_1(transaction_dict, options, preview=False)
             pdf_file = Path(pdf_path)
 
             print(f"DEBUG: pdf_path = '{pdf_path}'")
