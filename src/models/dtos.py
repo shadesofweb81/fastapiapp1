@@ -33,6 +33,14 @@ class CompanyPrintDto(BaseModel):
     tax_id: str = Field(default="", alias="taxId")
     logo_url: str = Field(default="", alias="logoUrl")
     currency: str = Field(default="", alias="currency")
+    bank_name: str = Field(default="", alias="bankName")
+    account_number: str = Field(default="", alias="accountNumber")
+    ifsc_code: str = Field(default="", alias="ifscCode")
+    account_holder_name: str = Field(default="", alias="accountHolderName")
+    branch_name: str = Field(default="", alias="branchName")
+    swift_code: str = Field(default="", alias="swiftCode")
+    terms_and_conditions: str = Field(default="", alias="termsAndConditions")
+    billing_address: AddressPrintDto = Field(default_factory=AddressPrintDto, alias="billingAddress")
 
     class Config:
         populate_by_name = True

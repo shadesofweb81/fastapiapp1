@@ -278,9 +278,15 @@ class InvoicePDFTemplate1Generator:
             else:
                 self.currency_symbol = '₹'
             
-            # Margins for A4 - tight margins as content has its own spacing
-            margins = {'right': self.outer_margin, 'left': self.outer_margin, 
-                      'top': self.outer_margin + 2*mm, 'bottom': self.outer_margin + 2*mm}
+            # Fixed footer heights (drawn on canvas)
+            self.terms_footer_height = 22*mm
+            self.bank_details_height = 14*mm
+            # Bottom margin must clear the fixed footer area
+            bottom_margin = self.outer_margin + self.terms_footer_height + self.bank_details_height + 2*mm
+
+            # Margins for A4
+            margins = {'right': self.outer_margin, 'left': self.outer_margin,
+                      'top': self.outer_margin + 2*mm, 'bottom': bottom_margin}
 
             company_name = company.get('name') or company.get('companyName', 'Company')
             pdf_title = f"Invoice {invoice_num} - {company_name}"
@@ -1065,87 +1071,132 @@ class InvoicePDFTemplate1Generator:
         return result if result else 'Zero'
     
     def _add_page_border(self, canvas_obj, doc):
-        """Add outer page border, footer signatures, and page number"""
+        """Add outer page border, bank details row, footer signatures, and page number"""
         page_num = canvas_obj.getPageNumber()
-        
+
         # Get company data for footer
         company_name = "Company Name"
+        company = {}
         if hasattr(self, 'footer_data') and self.footer_data:
             company = self.footer_data.get('company', {})
             company_name = company.get('name') or company.get('companyName', 'Company Name')
-        
-        # Footer row position - bottom edge aligned with page border
+
+        terms_height = getattr(self, 'terms_footer_height', 22*mm)
+        bank_height = getattr(self, 'bank_details_height', 14*mm)
+
+        # Terms/Signature footer - bottom aligned with page border
         footer_y = self.outer_margin
-        
-        # Draw footer box border
+        # Bank details row - sits directly above terms footer
+        bank_y = footer_y + terms_height
+
         canvas_obj.setStrokeColor(colors.black)
         canvas_obj.setLineWidth(0.5)
-        canvas_obj.rect(
-            self.outer_margin,
-            footer_y,
-            self.content_width,
-            22*mm
-        )
-        
-        # Calculate column positions
+
+        # --- Bank Details Row (horizontal layout across full width) ---
+        canvas_obj.rect(self.outer_margin, bank_y, self.content_width, bank_height)
+
         left_x = self.outer_margin + 3
+
+        bank_name = company.get('bankName', '')
+        account_number = company.get('accountNumber', '')
+        ifsc_code = company.get('ifscCode', '')
+        account_holder = company.get('accountHolderName', '')
+        branch_name = company.get('branchName', '')
+
+        canvas_obj.setFillColor(colors.black)
+
+        # Row 1: "Bank Details :" header label + Bank Name + Branch
+        row1_y = bank_y + bank_height - 5*mm
+        canvas_obj.setFont('Helvetica-Bold', 7)
+        canvas_obj.drawString(left_x, row1_y, "Bank Details :")
+
+        col2_x = self.outer_margin + self.content_width * 0.18
+        col3_x = self.outer_margin + self.content_width * 0.52
+        col4_x = self.outer_margin + self.content_width * 0.75
+
+        canvas_obj.setFont('Helvetica', 7)
+        canvas_obj.drawString(col2_x, row1_y, f"Bank : {bank_name}")
+        canvas_obj.drawString(col3_x, row1_y, f"Branch : {branch_name}")
+        canvas_obj.drawString(col4_x, row1_y, f"A/c Holder : {account_holder}")
+
+        # Row 2: A/c No + IFSC Code
+        row2_y = bank_y + bank_height - 10*mm
+        canvas_obj.drawString(col2_x, row2_y, f"A/c No. : {account_number}")
+        canvas_obj.drawString(col3_x, row2_y, f"IFSC Code : {ifsc_code}")
+
+        # --- Terms & Signature Footer Row ---
+        canvas_obj.setStrokeColor(colors.black)
+        canvas_obj.setLineWidth(0.5)
+        canvas_obj.rect(self.outer_margin, footer_y, self.content_width, terms_height)
+
+        # Column positions
         left_width = self.content_width * 0.40
         center_x = self.outer_margin + left_width
         center_width = self.content_width * 0.30
         right_x = self.outer_margin + left_width + center_width
-        right_width = self.content_width * 0.30
-        
-        # Draw vertical dividers
-        canvas_obj.line(center_x, footer_y, center_x, footer_y + 22*mm)
-        canvas_obj.line(right_x, footer_y, right_x, footer_y + 22*mm)
-        
+
+        # Vertical dividers
+        canvas_obj.line(center_x, footer_y, center_x, footer_y + terms_height)
+        canvas_obj.line(right_x, footer_y, right_x, footer_y + terms_height)
+
         # Left section - Terms & Conditions
         canvas_obj.setFont('Helvetica-Bold', 7)
         canvas_obj.setFillColor(colors.black)
         canvas_obj.drawString(left_x, footer_y + 19*mm, "Terms & Conditions")
-        
+
+        # Use company terms if provided, otherwise defaults
+        company_terms = company.get('termsAndConditions', '')
+        if company_terms:
+            # Split long terms text into lines
+            terms = [line.strip() for line in company_terms.split('\n') if line.strip()]
+        else:
+            # Check data-level terms
+            data_terms = self.footer_data.get('termsAndConditions', []) if hasattr(self, 'footer_data') and self.footer_data else []
+            if data_terms:
+                terms = data_terms if isinstance(data_terms, list) else [data_terms]
+            else:
+                terms = [
+                    "E.& O.E.",
+                    "1. Goods once sold will not be taken back.",
+                    "2. Interest @ 18% p.a. will be charged if the",
+                    "    payment is not made with in the stipulated time.",
+                    "3. Subject to local Jurisdiction only."
+                ]
+
         canvas_obj.setFont('Helvetica', 6)
-        terms = [
-            "E.& O.E.",
-            "1. Goods once sold will not be taken back.",
-            "2. Interest @ 18% p.a. will be charged if the",
-            "    payment is not made with in the stipulated time.",
-            "3. Subject to local Jurisdiction only."
-        ]
         y_offset = 15*mm
-        for term in terms:
+        for term in terms[:6]:
             canvas_obj.drawString(left_x, footer_y + y_offset, term)
             y_offset -= 3*mm
-        
+
         # Center section - Receiver's Signature
         canvas_obj.setFont('Helvetica-Bold', 7)
         canvas_obj.setFillColor(colors.black)
         text_width = canvas_obj.stringWidth("Receiver's Signature :", 'Helvetica-Bold', 7)
         center_text_x = center_x + (center_width - text_width) / 2
         canvas_obj.drawString(center_text_x, footer_y + 19*mm, "Receiver's Signature :")
-        
+
         # Right section - Authorised Signatory
         canvas_obj.setFont('Helvetica-Bold', 7)
         for_company_text = f"for {company_name.upper()}"
-        text_width = canvas_obj.stringWidth(for_company_text, 'Helvetica-Bold', 7)
         canvas_obj.drawRightString(self.outer_margin + self.content_width - 3, footer_y + 19*mm, for_company_text)
-        
+
         auth_sig_text = "Authorised Signatory"
         canvas_obj.drawRightString(self.outer_margin + self.content_width - 3, footer_y + 3*mm, auth_sig_text)
-        
+
         # Page number at bottom right (below footer)
         text = f"Page {page_num}"
         canvas_obj.setFont('Helvetica', 7)
         canvas_obj.setFillColor(colors.grey)
         canvas_obj.drawRightString(self.page_width - 10*mm, 4*mm, text)
-        
+
         # Draw outer border at 8mm margin from page edges
         canvas_obj.setStrokeColor(colors.black)
         canvas_obj.setLineWidth(0.5)
         canvas_obj.rect(
-            self.outer_margin, 
-            self.outer_margin, 
-            self.page_width - 2*self.outer_margin, 
+            self.outer_margin,
+            self.outer_margin,
+            self.page_width - 2*self.outer_margin,
             self.page_height - 2*self.outer_margin
         )
 
