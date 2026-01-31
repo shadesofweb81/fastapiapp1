@@ -364,10 +364,8 @@ class InvoicePDFTemplate1Generator:
         
         # Row 11: Amount in words
         content.extend(self._build_amount_in_words(data))
-        content.append(Spacer(1, 4*mm))
-        
-        # Row 12: Footer at bottom - Terms, Receiver's Signature, Authorised Signatory
-        content.extend(self._build_footer_section(data))
+        # Footer (Terms, Receiver's Signature, Authorised Signatory) is drawn
+        # at fixed page bottom position by _add_page_border
         
         return content
     
@@ -1067,10 +1065,75 @@ class InvoicePDFTemplate1Generator:
         return result if result else 'Zero'
     
     def _add_page_border(self, canvas_obj, doc):
-        """Add outer page border and page number"""
+        """Add outer page border, footer signatures, and page number"""
         page_num = canvas_obj.getPageNumber()
         
-        # Page number at bottom right
+        # Get company data for footer
+        company_name = "Company Name"
+        if hasattr(self, 'footer_data') and self.footer_data:
+            company = self.footer_data.get('company', {})
+            company_name = company.get('name') or company.get('companyName', 'Company Name')
+        
+        # Footer row position - bottom edge aligned with page border
+        footer_y = self.outer_margin
+        
+        # Draw footer box border
+        canvas_obj.setStrokeColor(colors.black)
+        canvas_obj.setLineWidth(0.5)
+        canvas_obj.rect(
+            self.outer_margin,
+            footer_y,
+            self.content_width,
+            22*mm
+        )
+        
+        # Calculate column positions
+        left_x = self.outer_margin + 3
+        left_width = self.content_width * 0.40
+        center_x = self.outer_margin + left_width
+        center_width = self.content_width * 0.30
+        right_x = self.outer_margin + left_width + center_width
+        right_width = self.content_width * 0.30
+        
+        # Draw vertical dividers
+        canvas_obj.line(center_x, footer_y, center_x, footer_y + 22*mm)
+        canvas_obj.line(right_x, footer_y, right_x, footer_y + 22*mm)
+        
+        # Left section - Terms & Conditions
+        canvas_obj.setFont('Helvetica-Bold', 7)
+        canvas_obj.setFillColor(colors.black)
+        canvas_obj.drawString(left_x, footer_y + 19*mm, "Terms & Conditions")
+        
+        canvas_obj.setFont('Helvetica', 6)
+        terms = [
+            "E.& O.E.",
+            "1. Goods once sold will not be taken back.",
+            "2. Interest @ 18% p.a. will be charged if the",
+            "    payment is not made with in the stipulated time.",
+            "3. Subject to local Jurisdiction only."
+        ]
+        y_offset = 15*mm
+        for term in terms:
+            canvas_obj.drawString(left_x, footer_y + y_offset, term)
+            y_offset -= 3*mm
+        
+        # Center section - Receiver's Signature
+        canvas_obj.setFont('Helvetica-Bold', 7)
+        canvas_obj.setFillColor(colors.black)
+        text_width = canvas_obj.stringWidth("Receiver's Signature :", 'Helvetica-Bold', 7)
+        center_text_x = center_x + (center_width - text_width) / 2
+        canvas_obj.drawString(center_text_x, footer_y + 19*mm, "Receiver's Signature :")
+        
+        # Right section - Authorised Signatory
+        canvas_obj.setFont('Helvetica-Bold', 7)
+        for_company_text = f"for {company_name.upper()}"
+        text_width = canvas_obj.stringWidth(for_company_text, 'Helvetica-Bold', 7)
+        canvas_obj.drawRightString(self.outer_margin + self.content_width - 3, footer_y + 19*mm, for_company_text)
+        
+        auth_sig_text = "Authorised Signatory"
+        canvas_obj.drawRightString(self.outer_margin + self.content_width - 3, footer_y + 3*mm, auth_sig_text)
+        
+        # Page number at bottom right (below footer)
         text = f"Page {page_num}"
         canvas_obj.setFont('Helvetica', 7)
         canvas_obj.setFillColor(colors.grey)
