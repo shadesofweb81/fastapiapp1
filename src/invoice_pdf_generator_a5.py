@@ -1,13 +1,13 @@
 """
 Invoice PDF Generator A5 - Generate professional invoice PDFs for A5 paper using ReportLab
-This is a separate implementation optimized for A5 paper size (half of A4)
+This implementation matches the exact design from 1-1.html template
 """
 import os
 import re
 from datetime import datetime
 from pathlib import Path
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A5
+from reportlab.lib.pagesizes import A5, A4
 from reportlab.lib.units import inch, mm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
@@ -17,17 +17,17 @@ from reportlab.pdfgen import canvas
 
 
 class InvoicePDFA5Generator:
-    """Generate professional invoice PDFs for A5 paper size"""
+    """Generate professional invoice PDFs for A5 paper size - matching 1-1.html design"""
     
     def __init__(self):
-        self.page_size = A5
+        self.page_size = A4
         self.page_width, self.page_height = self.page_size
         self.styles = getSampleStyleSheet()
         self._create_custom_styles()
-        self.currency_symbol = 'Rs.'  # Default currency symbol
+        self.currency_symbol = '₹'  # Default currency symbol (Rupee)
         # Currency symbol mappings for better display
         self.currency_map = {
-            'INR': 'Rs.',
+            'INR': '₹',
             'USD': '$',
             'EUR': '€',
             'GBP': '£',
@@ -37,77 +37,131 @@ class InvoicePDFA5Generator:
         }
     
     def _create_custom_styles(self):
-        """Create custom paragraph styles for A5 paper size"""
-        # Company name style
+        """Create custom paragraph styles for A5 paper size matching 1-1.html"""
+        # Company name style - Bold, larger
         self.styles.add(ParagraphStyle(
             name='CompanyName',
             parent=self.styles['Heading1'],
-            fontSize=12,
-            textColor=colors.HexColor('#1a5490'),
+            fontSize=10,
+            textColor=colors.black,
             spaceAfter=0,
             spaceBefore=0,
-            alignment=TA_CENTER,
+            alignment=TA_LEFT,
             fontName='Helvetica-Bold'
         ))
         
-        # Company details style
+        # Normal text style
         self.styles.add(ParagraphStyle(
-            name='CompanyDetails',
+            name='NormalText',
             parent=self.styles['Normal'],
-            fontSize=6,
-            textColor=colors.HexColor('#444444'),
-            alignment=TA_CENTER,
+            fontSize=7,
+            textColor=colors.black,
+            alignment=TA_LEFT,
             spaceAfter=0,
             spaceBefore=0
         ))
         
-        # Document title style
+        # Bold text style
+        self.styles.add(ParagraphStyle(
+            name='BoldText',
+            parent=self.styles['Normal'],
+            fontSize=7,
+            textColor=colors.black,
+            alignment=TA_LEFT,
+            spaceAfter=0,
+            spaceBefore=0,
+            fontName='Helvetica-Bold'
+        ))
+        
+        # Document title style - TAX INVOICE - centered bold
         self.styles.add(ParagraphStyle(
             name='DocumentTitle',
             parent=self.styles['Heading1'],
-            fontSize=11,
-            textColor=colors.HexColor('#1a5490'),
+            fontSize=9,
+            textColor=colors.black,
             spaceAfter=0,
             spaceBefore=0,
             alignment=TA_CENTER,
             fontName='Helvetica-Bold'
         ))
         
-        # Section header style
-        self.styles.add(ParagraphStyle(
-            name='SectionHeader',
-            parent=self.styles['Normal'],
-            fontSize=7,
-            textColor=colors.white,
-            spaceAfter=4,
-            fontName='Helvetica-Bold'
-        ))
-        
-        # Label style
-        self.styles.add(ParagraphStyle(
-            name='Label',
-            parent=self.styles['Normal'],
-            fontSize=6,
-            textColor=colors.HexColor('#666666'),
-            fontName='Helvetica-Bold'
-        ))
-        
-        # Value style
-        self.styles.add(ParagraphStyle(
-            name='Value',
-            parent=self.styles['Normal'],
-            fontSize=6,
-            textColor=colors.HexColor('#000000')
-        ))
-        
-        # Copy type style (ORIGINAL/DUPLICATE/TRIPLICATE)
+        # Copy type style (Original Copy) - italic right aligned
         self.styles.add(ParagraphStyle(
             name='CopyType',
             parent=self.styles['Normal'],
-            fontSize=6,
-            textColor=colors.HexColor('#d32f2f'),
+            fontSize=7,
+            textColor=colors.black,
+            alignment=TA_RIGHT,
+            fontName='Helvetica-Oblique'
+        ))
+        
+        # GSTIN style - left aligned
+        self.styles.add(ParagraphStyle(
+            name='GSTINStyle',
+            parent=self.styles['Normal'],
+            fontSize=7,
+            textColor=colors.black,
+            alignment=TA_LEFT,
+            spaceAfter=0,
+            spaceBefore=0
+        ))
+        
+        # Table header style - small
+        self.styles.add(ParagraphStyle(
+            name='TableHeader',
+            parent=self.styles['Normal'],
+            fontSize=5,
+            textColor=colors.black,
+            alignment=TA_CENTER,
+            fontName='Helvetica'
+        ))
+        
+        # Table cell style
+        self.styles.add(ParagraphStyle(
+            name='TableCell',
+            parent=self.styles['Normal'],
+            fontSize=5,
+            textColor=colors.black,
+            alignment=TA_LEFT
+        ))
+        
+        # Table cell right aligned
+        self.styles.add(ParagraphStyle(
+            name='TableCellRight',
+            parent=self.styles['Normal'],
+            fontSize=5,
+            textColor=colors.black,
+            alignment=TA_RIGHT
+        ))
+        
+        # Italic style for Add rows
+        self.styles.add(ParagraphStyle(
+            name='ItalicText',
+            parent=self.styles['Normal'],
+            fontSize=5,
+            textColor=colors.black,
+            alignment=TA_RIGHT,
+            fontName='Helvetica-Oblique'
+        ))
+        
+        # Grand Total style
+        self.styles.add(ParagraphStyle(
+            name='GrandTotal',
+            parent=self.styles['Normal'],
+            fontSize=7,
+            textColor=colors.black,
             alignment=TA_RIGHT,
             fontName='Helvetica-Bold'
+        ))
+        
+        # Footer signature style - italic
+        self.styles.add(ParagraphStyle(
+            name='FooterSignature',
+            parent=self.styles['Normal'],
+            fontSize=6,
+            textColor=colors.black,
+            alignment=TA_LEFT,
+            fontName='Helvetica-Oblique'
         ))
     
     def generate_invoice_pdf(self, data, options, preview=False):
@@ -156,10 +210,11 @@ class InvoicePDFA5Generator:
             elif currency_code and currency_code in self.currency_map:
                 self.currency_symbol = self.currency_map[currency_code]
             else:
-                self.currency_symbol = 'Rs.'  # Default fallback
+                self.currency_symbol = '₹'  # Default fallback
             
-            # A5 margins - compact for smaller paper
-            margins = {'right': 1*mm, 'left': 1*mm, 'top': 1*mm, 'bottom': 45*mm}
+            # A4 margins - force content to top half (A5 Landscape area on A4)
+            # A4 Height = 297mm. Half = ~148.5mm. Using 150mm bottom margin allows roughly 145mm height.
+            margins = {'right': 2*mm, 'left': 2*mm, 'top': 2*mm, 'bottom': 150*mm}
 
             # Create PDF title for metadata
             company_name = company.get('name') or company.get('companyName', 'Company')
@@ -168,7 +223,7 @@ class InvoicePDFA5Generator:
             # Create PDF document
             doc = SimpleDocTemplate(
                 str(output_path),
-                pagesize=A5,
+                pagesize=self.page_size,
                 rightMargin=margins['right'],
                 leftMargin=margins['left'],
                 topMargin=margins['top'],
@@ -205,7 +260,7 @@ class InvoicePDFA5Generator:
                     page_count += 1
             
             # Build PDF
-            doc.build(story, onFirstPage=self._add_page_number, onLaterPages=self._add_page_number)
+            doc.build(story, onFirstPage=self._add_page_elements, onLaterPages=self._add_page_elements)
             
             return str(output_path)
         
@@ -216,395 +271,528 @@ class InvoicePDFA5Generator:
             raise
     
     def _build_invoice_content(self, data, copy_type):
-        """Build invoice content for one copy - A5 optimized layout"""
+        """Build invoice content for one copy - matching 1-1.html layout"""
         content = []
+        content_width = self.page_width - 4*mm  # Account for 2mm margins on each side
         
-        # Document title at the very top with copy type
-        transaction_header = data.get('transactionHeader', {})
-        trans_type = transaction_header.get('type', '')
+        # Map copy type to display text
+        copy_type_map = {
+            "ORIGINAL": "Original Copy",
+            "DUPLICATE": "Duplicate Copy",
+            "TRIPLICATE": "Triplicate Copy"
+        }
+        copy_display = copy_type_map.get(copy_type, f"{copy_type} Copy")
         
-        # Determine document title based on transaction type
-        if data.get('documentTitle'):
-            doc_title = data.get('documentTitle')
-        elif 'sale' in trans_type.lower() or 'invoice' in trans_type.lower():
-            doc_title = 'TAX INVOICE'
-        elif 'purchase' in trans_type.lower():
-            doc_title = 'PURCHASE BILL'
-        else:
-            doc_title = 'TAX INVOICE'
+        # Get company data
+        company = data.get('company', {})
+        company_gstin = company.get('gstin') or company.get('taxId', '')
         
-        # Title centered with copy type on far right only
-        content_width = self.page_width - 6*mm
-        side_width = 20*mm
-        center_width = content_width - 2*side_width
-        
-        title_table_data = [[
-            Paragraph('', self.styles['Value']),
-            Paragraph(doc_title, self.styles['DocumentTitle']),
-            Paragraph(copy_type, self.styles['CopyType'])
+        # Row 1: GSTIN | TAX INVOICE | Copy Type
+        row1_data = [[
+            Paragraph(f"GSTIN : {company_gstin}", self.styles['GSTINStyle']),
+            Paragraph("TAX INVOICE", self.styles['DocumentTitle']),
+            Paragraph(copy_display, self.styles['CopyType'])
         ]]
-        title_table = Table(title_table_data, colWidths=[side_width, center_width, side_width])
-        title_table.setStyle(TableStyle([
+        row1_table = Table(row1_data, colWidths=[content_width*0.35, content_width*0.30, content_width*0.35])
+        row1_table.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('ALIGN', (0, 0), (0, 0), 'LEFT'),
             ('ALIGN', (1, 0), (1, 0), 'CENTER'),
             ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
         ]))
-        content.append(title_table)
-
-        # Company header
-        content.extend(self._build_company_header(data))
-        content.append(Spacer(1, 1*mm))
-
-        # Invoice details and Party details
-        content.extend(self._build_details_section(data))
+        content.append(row1_table)
         content.append(Spacer(1, 1*mm))
         
-        # Items table
+        # Row 2: Company details (left) | Billed to (right)
+        content.extend(self._build_company_and_party_section(data))
+        content.append(Spacer(1, 2*mm))
+        
+        # Row 3: Invoice No | Dated | Place of Supply
+        content.extend(self._build_invoice_details_row(data))
+        content.append(Spacer(1, 2*mm))
+        
+        # Items table with tax columns
         content.extend(self._build_items_table(data))
-        content.append(Spacer(1, 1*mm))
+        content.append(Spacer(1, 0.5*mm))
+
+        # Tax addition rows (Add: SGST, Add: CGST, Add: Rounded Off)
+        content.extend(self._build_tax_addition_rows(data))
+        content.append(Spacer(1, 0.5*mm))
+
+        # Grand Total row
+        content.extend(self._build_grand_total_row(data))
+        content.append(Spacer(1, 2*mm))
         
-        # Totals section with amount in words
-        content.extend(self._build_totals_section(data))
+        # Tax Summary table
+        content.extend(self._build_tax_summary_table(data))
 
         return content
     
-    def _build_company_header(self, data):
-        """Build company header section - compact for A5"""
+    def _build_company_and_party_section(self, data):
+        """Build company and party details side by side"""
         content = []
+        content_width = self.page_width - 4*mm
         
         company = data.get('company', {})
+        party_data = data.get('party', {})
+        
+        # Left side - Company details
         company_name = company.get('name') or company.get('companyName', 'Company Name')
-        address = company.get('address', '')
-        city = company.get('city', '')
-        state = company.get('state', '')
-        country = company.get('country', '')
-        zipcode = company.get('zipCode', '')
         phone = company.get('phone') or company.get('phoneNumber', '')
         email = company.get('email', '')
-        gstin = company.get('gstin') or company.get('taxId', '')
         
-        # Company name
-        content.append(Paragraph(company_name, self.styles['CompanyName']))
+        left_content = []
+        left_content.append(Paragraph(f"<b>{company_name}</b>", self.styles['CompanyName']))
+        if phone or email:
+            tel_email = f"Tel./Email : {phone} / {email}" if phone and email else f"Tel./Email : {phone}{email}"
+            left_content.append(Paragraph(tel_email, self.styles['NormalText']))
         
-        # Combined address line
+        # Right side - Billed to details
+        party_name = party_data.get('name') or data.get('partyName', 'N/A')
+        billing_address = party_data.get('billingAddress', party_data)
+        address = billing_address.get('address', '')
+        city = billing_address.get('city', '')
+        state = billing_address.get('state', '')
+        party_gstin = party_data.get('taxId') or party_data.get('gstin', '')
+        
+        # Build address string
         address_parts = []
         if address:
             address_parts.append(address)
-        location_parts = []
         if city:
-            location_parts.append(city)
-        if state:
-            location_parts.append(state)
-        if zipcode:
-            location_parts.append(zipcode)
-        if location_parts:
-            address_parts.append(', '.join(location_parts))
+            address_parts.append(city)
+        address_str = ', '.join(address_parts) if address_parts else ''
         
-        if address_parts:
-            content.append(Paragraph(' | '.join(address_parts), self.styles['CompanyDetails']))
+        right_content = []
+        right_content.append(Paragraph(f"<b>Billed to :</b>  {party_name}", self.styles['BoldText']))
+        if address_str:
+            right_content.append(Paragraph(f"<b>Address :</b>  {address_str}", self.styles['NormalText']))
+        if party_gstin:
+            right_content.append(Paragraph(f"<b>GSTIN :</b>  {party_gstin}", self.styles['NormalText']))
         
-        # Contact and GSTIN on same line
-        contact_parts = []
-        if phone:
-            contact_parts.append(f"Ph: {phone}")
-        if email:
-            contact_parts.append(f"Email: {email}")
-        if gstin:
-            contact_parts.append(f"GSTIN: {gstin}")
-        
-        if contact_parts:
-            content.append(Paragraph(' | '.join(contact_parts), self.styles['CompanyDetails']))
-
-        # Add horizontal border line
-        content_width = self.page_width - 6*mm
-        line_table = Table([['']], colWidths=[content_width])
-        line_table.setStyle(TableStyle([
-            ('LINEBELOW', (0, 0), (-1, -1), 1, colors.HexColor('#1a5490')),
+        # Create two column layout
+        left_table = Table([[cell] for cell in left_content], colWidths=[content_width*0.45])
+        left_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
             ('TOPPADDING', (0, 0), (-1, -1), 0),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
         ]))
-        content.append(line_table)
-
+        
+        right_table = Table([[cell] for cell in right_content], colWidths=[content_width*0.50])
+        right_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        
+        main_table = Table([[left_table, right_table]], colWidths=[content_width*0.45, content_width*0.55])
+        main_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        content.append(main_table)
+        
         return content
     
-    def _build_details_section(self, data):
-        """Build invoice details and party details - A5 compact layout"""
+    def _build_invoice_details_row(self, data):
+        """Build Invoice No | Dated | Place of Supply row"""
         content = []
+        content_width = self.page_width - 4*mm
         
         transaction_header = data.get('transactionHeader', data)
-        party_data = data.get('party', {})
-        transport_data = data.get('transport', {})
         
-        content_width = self.page_width - 6*mm
-        col_width = content_width / 2
-        
-        # Helper function to create compact label-value table
-        def create_details_table(details_list, title):
-            table_data = []
-            table_data.append([Paragraph(f"<b>{title}</b>", self.styles['Label']), ''])
-            for label, value in details_list:
-                table_data.append([
-                    Paragraph(f"{label}:", self.styles['Label']),
-                    Paragraph(str(value), self.styles['Value'])
-                ])
-            
-            label_width = 18*mm
-            value_width = col_width - label_width - 2*mm
-            tbl = Table(table_data, colWidths=[label_width, value_width])
-            tbl.setStyle(TableStyle([
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-                ('LEFTPADDING', (0, 0), (-1, -1), 1),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 1),
-                ('TOPPADDING', (0, 0), (-1, -1), 0),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-                ('SPAN', (0, 0), (1, 0)),
-            ]))
-            return tbl
-        
-        # Left column - Invoice details
-        invoice_details = []
         invoice_no = transaction_header.get('invoiceNumber') or data.get('invoiceNumber', 'N/A')
-        invoice_details.append(('Inv No', f"<b>{invoice_no}</b>"))
-        
         trans_date = transaction_header.get('transactionDate') or data.get('transactionDate', '')
-        invoice_details.append(('Date', self._format_date(trans_date)))
+        place_of_supply = transaction_header.get('placeOfSupply') or data.get('placeOfSupply', '')
+        state_code = transaction_header.get('stateCode') or data.get('stateCode', '')
         
-        due_date = transaction_header.get('dueDate') or data.get('dueDate', '')
-        if due_date:
-            invoice_details.append(('Due', self._format_date(due_date)))
+        formatted_date = self._format_date_time(trans_date)
         
-        invoice_table = create_details_table(invoice_details, 'Invoice Details')
+        # Place of supply with state code
+        pos_display = place_of_supply
+        if state_code:
+            pos_display = f"{place_of_supply} ({state_code})" if place_of_supply else f"({state_code})"
         
-        # Right column - Party details (compact)
-        party_name = party_data.get('name') or data.get('partyName', 'N/A')
-        billing_address = party_data.get('billingAddress', party_data)
+        row_data = [[
+            Paragraph(f"<b>Invoice No.</b>  : {invoice_no}", self.styles['BoldText']),
+            Paragraph(f"<b>Dated</b>  : {formatted_date}", self.styles['BoldText']),
+            Paragraph(f"<b>Place of Supply</b>  : {pos_display}", self.styles['BoldText'])
+        ]]
         
-        party_details = []
-        party_details.append(('Party', f"<b>{party_name[:25]}</b>"))
-        
-        if billing_address.get('city'):
-            party_details.append(('City', billing_address.get('city', '')))
-        
-        party_gstin = party_data.get('taxId') or party_data.get('gstin', '')
-        if party_gstin:
-            party_details.append(('GSTIN', party_gstin))
-        
-        party_table = create_details_table(party_details, 'Bill To')
-        
-        # Create table for both sections
-        details_table = Table([[invoice_table, party_table]], colWidths=[col_width, col_width])
-        details_table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 1),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 1),
+        row_table = Table(row_data, colWidths=[content_width*0.30, content_width*0.35, content_width*0.35])
+        row_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'LEFT'),
+            ('ALIGN', (2, 0), (2, 0), 'LEFT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.black),
         ]))
-        content.append(details_table)
+        content.append(row_table)
         
         return content
     
     def _build_items_table(self, data):
-        """Build items table - A5 compact layout"""
+        """Build items table with tax columns matching 1-1.html"""
         content = []
+        content_width = self.page_width - 4*mm
         
-        # Simplified header for A5
-        table_data = [[
-            Paragraph('<b>#</b>', self.styles['Label']),
-            Paragraph('<b>Description</b>', self.styles['Label']),
-            Paragraph('<b>HSN</b>', self.styles['Label']),
-            Paragraph('<b>Qty</b>', self.styles['Label']),
-            Paragraph('<b>Rate</b>', self.styles['Label']),
-            Paragraph('<b>Amount</b>', self.styles['Label'])
-        ]]
+        # Table header matching 1-1.html:
+        # S.N. | Goods/Services supplied | HSN/SAC | Qty. | Unit | List Price | CGST (%) | CGST Amt. | SGST (%) | SGST Amt. | Amount(₹)
+        header_row = [
+            Paragraph('S.N.', self.styles['TableHeader']),
+            Paragraph('Goods / Services supplied', self.styles['TableHeader']),
+            Paragraph('HSN/SAC', self.styles['TableHeader']),
+            Paragraph('Qty.', self.styles['TableHeader']),
+            Paragraph('Unit', self.styles['TableHeader']),
+            Paragraph('List Price', self.styles['TableHeader']),
+            Paragraph('CGST (%)', self.styles['TableHeader']),
+            Paragraph('CGST Amt.', self.styles['TableHeader']),
+            Paragraph('SGST (%)', self.styles['TableHeader']),
+            Paragraph('SGST Amt.', self.styles['TableHeader']),
+            Paragraph(f'Amount({self.currency_symbol})', self.styles['TableHeader'])
+        ]
+        
+        table_data = [header_row]
         
         # Items rows
         items = data.get('items', [])
         for idx, item in enumerate(items, 1):
             serial_no = item.get('serialNumber') if item.get('serialNumber') else idx
             description = item.get('description') or item.get('productName', '')
-            # Truncate description for A5
-            if len(description) > 30:
-                description = description[:27] + '...'
             hsn_code = item.get('hsnCode', '')
             quantity = float(item.get('quantity', 0) or 0)
             unit = item.get('unit') or item.get('unitName', '')
             unit_price = float(item.get('unitPrice', 0) or 0)
             line_total = float(item.get('lineTotal', 0) or 0)
+            
+            # Tax details from item
+            cgst_rate = float(item.get('cgstRate', 0) or item.get('cgst', 0) or 0)
+            cgst_amount = float(item.get('cgstAmount', 0) or 0)
+            sgst_rate = float(item.get('sgstRate', 0) or item.get('sgst', 0) or 0)
+            sgst_amount = float(item.get('sgstAmount', 0) or 0)
+            
+            # If no separate tax amounts, calculate from rates if available
+            if cgst_amount == 0 and cgst_rate > 0:
+                taxable_value = float(item.get('taxableValue', 0) or line_total or 0)
+                cgst_amount = taxable_value * cgst_rate / 100
+            if sgst_amount == 0 and sgst_rate > 0:
+                taxable_value = float(item.get('taxableValue', 0) or line_total or 0)
+                sgst_amount = taxable_value * sgst_rate / 100
 
-            qty_display = f"{quantity:.0f}" if quantity == int(quantity) else f"{quantity:.1f}"
-            if unit:
-                qty_display += f" {unit[:3]}"
+            qty_display = f"{quantity:.2f}" if quantity != int(quantity) else f"{int(quantity)}.00"
             
             table_data.append([
-                Paragraph(str(serial_no), self.styles['Value']),
-                Paragraph(description, self.styles['Value']),
-                Paragraph(hsn_code, self.styles['Value']),
-                Paragraph(qty_display, self.styles['Value']),
-                Paragraph(f"{unit_price:,.0f}", self.styles['Value']),
-                Paragraph(f"{line_total:,.0f}", self.styles['Value'])
+                Paragraph(str(serial_no), self.styles['TableCell']),
+                Paragraph(description, self.styles['TableCell']),
+                Paragraph(str(hsn_code), self.styles['TableCell']),
+                Paragraph(qty_display, self.styles['TableCellRight']),
+                Paragraph(str(unit), self.styles['TableCell']),
+                Paragraph(f"{unit_price:,.2f}", self.styles['TableCellRight']),
+                Paragraph(f"{cgst_rate:.2f} %", self.styles['TableCellRight']),
+                Paragraph(f"{cgst_amount:,.2f}", self.styles['TableCellRight']),
+                Paragraph(f"{sgst_rate:.2f} %", self.styles['TableCellRight']),
+                Paragraph(f"{sgst_amount:,.2f}", self.styles['TableCellRight']),
+                Paragraph(f"{line_total:,.2f}", self.styles['TableCellRight'])
             ])
         
-        # A5 column widths - more compact
-        content_width = self.page_width - 6*mm
+        # Column widths proportional to content
         col_widths = [
-            content_width * 0.05,  # #
-            content_width * 0.40,  # Description
-            content_width * 0.12,  # HSN
-            content_width * 0.13,  # Qty
-            content_width * 0.14,  # Rate
-            content_width * 0.16   # Amount
+            content_width * 0.04,   # S.N.
+            content_width * 0.22,   # Goods/Services
+            content_width * 0.08,   # HSN/SAC
+            content_width * 0.08,   # Qty
+            content_width * 0.05,   # Unit
+            content_width * 0.10,   # List Price
+            content_width * 0.08,   # CGST %
+            content_width * 0.09,   # CGST Amt
+            content_width * 0.08,   # SGST %
+            content_width * 0.08,   # SGST Amt
+            content_width * 0.10    # Amount
         ]
         
         items_table = Table(table_data, colWidths=col_widths)
         
         items_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 6),
+            # Header row styling
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, 0), 5),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 2),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.white),
             
+            # Data rows styling
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 1), (-1, -1), 5),
-            ('ALIGN', (0, 1), (0, -1), 'CENTER'),
-            ('ALIGN', (3, 1), (5, -1), 'RIGHT'),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # S.N. center
+            ('ALIGN', (3, 1), (-1, -1), 'RIGHT'),  # Numbers right aligned
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             
-            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#1a5490')),
-            ('LINEBELOW', (0, 0), (-1, -2), 0.25, colors.grey),
+            # Borders
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.black),
+            ('LINEBELOW', (0, 0), (-1, 0), 0.5, colors.black),
             ('LINEAFTER', (0, 0), (-2, -1), 0.25, colors.grey),
+            ('LINEBELOW', (0, 0), (-1, -2), 0.25, colors.grey),
             
-            ('LEFTPADDING', (0, 0), (-1, -1), 2),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
-            ('TOPPADDING', (0, 0), (-1, -1), 1),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
         ]))
         
         content.append(items_table)
         
         return content
     
-    def _build_totals_section(self, data):
-        """Build totals section - A5 compact"""
+    def _build_tax_addition_rows(self, data):
+        """Build Add: SGST, Add: CGST, Add: Rounded Off rows"""
         content = []
+        content_width = self.page_width - 4*mm
         
         summary = data.get('summary', data)
         
-        totals_data = []
+        # Get tax totals
+        total_sgst = 0
+        total_cgst = 0
+        sgst_rate = 0
+        cgst_rate = 0
         
-        # Subtotal
-        subtotal = float(summary.get('subTotal', 0) or 0)
-        totals_data.append([
-            Paragraph('<b>Subtotal:</b>', self.styles['Label']),
-            Paragraph(f"{self.currency_symbol}{subtotal:,.0f}", self.styles['Value'])
-        ])
-
-        # Taxes - simplified for A5
+        # Try to get from taxComponentsSummary
         tax_components_summary = summary.get('taxComponentsSummary', [])
-        if tax_components_summary:
-            total_tax = sum(float(comp.get('amount', 0) or 0) for comp in tax_components_summary)
-            totals_data.append([
-                Paragraph('Tax:', self.styles['Value']),
-                Paragraph(f"{self.currency_symbol}{total_tax:,.0f}", self.styles['Value'])
-            ])
-        else:
-            taxes = data.get('taxes', [])
-            if taxes:
-                total_tax = sum(float(tax.get('taxAmount') or tax.get('amount', 0) or 0) for tax in taxes)
-                totals_data.append([
-                    Paragraph('Tax:', self.styles['Value']),
-                    Paragraph(f"{self.currency_symbol}{total_tax:,.0f}", self.styles['Value'])
-                ])
-
-        # Grand total
-        total = float(summary.get('total', 0) or 0)
-        totals_data.append([
-            Paragraph('<b>Total:</b>', self.styles['Label']),
-            Paragraph(f"<b>{self.currency_symbol}{total:,.0f}</b>", self.styles['Value'])
-        ])
+        for comp in tax_components_summary:
+            tax_type = comp.get('taxType', '').upper()
+            amount = float(comp.get('amount', 0) or 0)
+            rate = float(comp.get('rate', 0) or 0)
+            if 'SGST' in tax_type:
+                total_sgst += amount
+                sgst_rate = rate
+            elif 'CGST' in tax_type:
+                total_cgst += amount
+                cgst_rate = rate
         
-        # Compact totals table
-        totals_table = Table(totals_data, colWidths=[25*mm, 25*mm])
-        totals_table.setStyle(TableStyle([
+        # If not found, try from taxes array
+        if total_sgst == 0 and total_cgst == 0:
+            taxes = data.get('taxes', [])
+            for tax in taxes:
+                tax_type = tax.get('taxType', '').upper()
+                amount = float(tax.get('taxAmount') or tax.get('amount', 0) or 0)
+                rate = float(tax.get('rate', 0) or 0)
+                if 'SGST' in tax_type:
+                    total_sgst += amount
+                    sgst_rate = rate
+                elif 'CGST' in tax_type:
+                    total_cgst += amount
+                    cgst_rate = rate
+        
+        # Calculate from items if still not found
+        if total_sgst == 0 and total_cgst == 0:
+            items = data.get('items', [])
+            for item in items:
+                cgst_amount = float(item.get('cgstAmount', 0) or 0)
+                sgst_amount = float(item.get('sgstAmount', 0) or 0)
+                total_cgst += cgst_amount
+                total_sgst += sgst_amount
+                if cgst_rate == 0:
+                    cgst_rate = float(item.get('cgstRate', 0) or item.get('cgst', 0) or 0)
+                if sgst_rate == 0:
+                    sgst_rate = float(item.get('sgstRate', 0) or item.get('sgst', 0) or 0)
+        
+        # Round off amount
+        round_off = float(summary.get('roundOff', 0) or 0)
+        round_off_sign = "(+)" if round_off >= 0 else "(-)"
+        
+        # Build addition rows - vertical stacked on right side
+        add_rows_data = [
+            [Paragraph(f"<i>Add : SGST @ {sgst_rate:.2f} %</i>", self.styles['ItalicText']),
+             Paragraph(f"{total_sgst:,.2f}", self.styles['TableCellRight'])],
+            [Paragraph(f"<i>Add : CGST @ {cgst_rate:.2f} %</i>", self.styles['ItalicText']),
+             Paragraph(f"{total_cgst:,.2f}", self.styles['TableCellRight'])],
+            [Paragraph(f"<i>Add : Rounded Off {round_off_sign}</i>", self.styles['ItalicText']),
+             Paragraph(f"{abs(round_off):,.2f}", self.styles['TableCellRight'])]
+        ]
+
+        # Two columns: label and amount, aligned to the right side of the page
+        col_widths = [content_width * 0.65, content_width * 0.15]
+
+        # Set row heights to minimal for compact display
+        row_heights = [1.5*mm, 1.5*mm, 1.5*mm]
+
+        add_table = Table(add_rows_data, colWidths=col_widths, rowHeights=row_heights)
+        add_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Oblique'),
+            ('FONTSIZE', (0, 0), (-1, -1), 5),
             ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
             ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 6),
-            ('TOPPADDING', (0, 0), (-1, -1), 1),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
-            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#1a5490')),
-        ]))
-        
-        # Right-align totals
-        content_width = self.page_width - 6*mm
-        totals_container = Table([[totals_table]], colWidths=[content_width])
-        totals_container.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2*mm),
             ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
         ]))
         
-        content.append(totals_container)
-        
-        # Amount in words - compact
-        amount_in_words = self._number_to_words(total)
-        content.append(Spacer(1, 1*mm))
-        content.append(Paragraph(f"<b>In Words:</b> {self.currency_symbol} {amount_in_words} Only", self.styles['Value']))
+        content.append(add_table)
         
         return content
     
-    def _number_to_words(self, num):
-        """Convert a number to words (Indian numbering system)"""
-        if num == 0:
-            return "Zero"
+    def _build_grand_total_row(self, data):
+        """Build Grand Total row"""
+        content = []
+        content_width = self.page_width - 4*mm
         
-        num = round(num, 2)
-        int_part = int(num)
-        dec_part = int(round((num - int_part) * 100))
+        summary = data.get('summary', data)
+        total = float(summary.get('total', 0) or 0)
         
-        ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
-                'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
-                'Seventeen', 'Eighteen', 'Nineteen']
-        tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+        row_data = [[
+            '', '', '', '', '', '',
+            Paragraph("<b>Grand Total</b>", self.styles['GrandTotal']),
+            '', '', '',
+            Paragraph(f"<b>{self.currency_symbol} {total:,.2f}</b>", self.styles['GrandTotal'])
+        ]]
         
-        def two_digits(n):
-            if n < 20:
-                return ones[n]
+        col_widths = [
+            content_width * 0.04,
+            content_width * 0.22,
+            content_width * 0.08,
+            content_width * 0.08,
+            content_width * 0.05,
+            content_width * 0.10,
+            content_width * 0.08,
+            content_width * 0.09,
+            content_width * 0.08,
+            content_width * 0.08,
+            content_width * 0.10  # 10: Total
+        ]
+        
+        total_table = Table(row_data, colWidths=col_widths)
+        total_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 7),
+            ('ALIGN', (-1, 0), (-1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('SPAN', (6, 0), (9, 0)),
+            ('ALIGN', (6, 0), (9, 0), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.black),
+        ]))
+        
+        content.append(total_table)
+        
+        return content
+    
+    def _build_tax_summary_table(self, data):
+        """Build Tax Summary table: Tax Rate | Taxable Amt. | CGST | SGST | Total Tax"""
+        content = []
+        content_width = self.page_width - 4*mm
+        
+        # Header row
+        header_row = [
+            Paragraph('<b>Tax Rate</b>', self.styles['BoldText']),
+            Paragraph('<b>Taxable Amt.</b>', self.styles['BoldText']),
+            Paragraph('<b>CGST</b>', self.styles['BoldText']),
+            Paragraph('<b>SGST</b>', self.styles['BoldText']),
+            Paragraph('<b>Total Tax</b>', self.styles['BoldText'])
+        ]
+        
+        table_data = [header_row]
+        
+        # Group items by tax rate
+        tax_groups = {}
+        items = data.get('items', [])
+        for item in items:
+            cgst_rate = float(item.get('cgstRate', 0) or item.get('cgst', 0) or 0)
+            sgst_rate = float(item.get('sgstRate', 0) or item.get('sgst', 0) or 0)
+            total_rate = cgst_rate + sgst_rate
+            
+            taxable_value = float(item.get('taxableValue', 0) or item.get('lineTotal', 0) or 0)
+            cgst_amount = float(item.get('cgstAmount', 0) or 0)
+            sgst_amount = float(item.get('sgstAmount', 0) or 0)
+            
+            if cgst_amount == 0 and cgst_rate > 0:
+                cgst_amount = taxable_value * cgst_rate / 100
+            if sgst_amount == 0 and sgst_rate > 0:
+                sgst_amount = taxable_value * sgst_rate / 100
+            
+            rate_key = f"{total_rate:.2f}%"
+            if rate_key not in tax_groups:
+                tax_groups[rate_key] = {
+                    'taxable': 0,
+                    'cgst': 0,
+                    'sgst': 0,
+                    'total_tax': 0
+                }
+            
+            tax_groups[rate_key]['taxable'] += taxable_value
+            tax_groups[rate_key]['cgst'] += cgst_amount
+            tax_groups[rate_key]['sgst'] += sgst_amount
+            tax_groups[rate_key]['total_tax'] += cgst_amount + sgst_amount
+        
+        # Add data rows
+        for rate_key, values in tax_groups.items():
+            table_data.append([
+                Paragraph(rate_key, self.styles['TableCell']),
+                Paragraph(f"{values['taxable']:,.2f}", self.styles['TableCellRight']),
+                Paragraph(f"{values['cgst']:,.2f}", self.styles['TableCellRight']),
+                Paragraph(f"{values['sgst']:,.2f}", self.styles['TableCellRight']),
+                Paragraph(f"{values['total_tax']:,.2f}", self.styles['TableCellRight'])
+            ])
+        
+        col_widths = [
+            content_width * 0.15,
+            content_width * 0.25,
+            content_width * 0.20,
+            content_width * 0.20,
+            content_width * 0.20
+        ]
+        
+        summary_table = Table(table_data, colWidths=col_widths)
+        summary_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 5),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.black),
+            ('LINEBELOW', (0, 0), (-1, 0), 0.5, colors.black),
+            ('LINEAFTER', (0, 0), (-2, -1), 0.25, colors.grey),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        
+        content.append(summary_table)
+        
+        return content
+    
+    def _format_date_time(self, date_str):
+        """Format date string with time - matching 1-1.html format (DD-MM-YYYY HH:MM AM/PM)"""
+        if not date_str:
+            return 'N/A'
+        
+        try:
+            if 'T' in date_str:
+                date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
             else:
-                return tens[n // 10] + ('' if n % 10 == 0 else ' ' + ones[n % 10])
-        
-        def three_digits(n):
-            if n < 100:
-                return two_digits(n)
-            else:
-                return ones[n // 100] + ' Hundred' + ('' if n % 100 == 0 else ' ' + two_digits(n % 100))
-        
-        result = ''
-        
-        if int_part >= 10000000:
-            crore = int_part // 10000000
-            result += three_digits(crore) + ' Crore '
-            int_part %= 10000000
-        
-        if int_part >= 100000:
-            lakh = int_part // 100000
-            result += two_digits(lakh) + ' Lakh '
-            int_part %= 100000
-        
-        if int_part >= 1000:
-            thousand = int_part // 1000
-            result += two_digits(thousand) + ' Thousand '
-            int_part %= 1000
-        
-        if int_part > 0:
-            result += three_digits(int_part)
-        
-        result = result.strip()
-        
-        if dec_part > 0:
-            result += ' and ' + two_digits(dec_part) + ' Paise'
-        
-        return result if result else 'Zero'
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+            return date_obj.strftime('%d-%m-%Y %I:%M %p')
+        except:
+            return date_str
     
     def _format_date(self, date_str):
         """Format date string - compact for A5"""
@@ -616,105 +804,53 @@ class InvoicePDFA5Generator:
                 date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
             else:
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-            return date_obj.strftime('%d-%m-%y')  # Shorter date format for A5
+            return date_obj.strftime('%d-%m-%Y')
         except:
             return date_str
     
-    def _add_page_number(self, canvas_obj, doc):
-        """Add page number, border, and footer to each page"""
-        page_num = canvas_obj.getPageNumber()
-        text = f"Page {page_num}"
-        canvas_obj.setFont('Helvetica', 5)
-        canvas_obj.setFillColor(colors.grey)
-        canvas_obj.drawRightString(self.page_width - 8*mm, 3*mm, text)
-        
-        # Draw border around the page
-        canvas_obj.setStrokeColor(colors.HexColor('#1a5490'))
+    def _add_page_elements(self, canvas_obj, doc):
+        """Add page border to each page - A5 is half of A4 (top half used)"""
+        # Draw border around the page content area (top half of A4)
+        canvas_obj.setStrokeColor(colors.black)
         canvas_obj.setLineWidth(0.5)
         margin = 2*mm
+
+        # Height of half page (roughly 148.5mm to 297mm in A4 coordinate space)
+        # Content is pushed to top half by bottom margin
+        # A4 Page: (0,0) is bottom left. (width, height) is top right.
+        # We want top half: y from height/2 to height.
+
+        half_height = self.page_height / 2
+
+        # Rect(x, y, width, height)
+        # Draw border around top half only
         canvas_obj.rect(
-            margin, 
-            margin, 
-            self.page_width - 2*margin, 
-            self.page_height - 2*margin
+            margin,
+            half_height + margin,
+            self.page_width - 2*margin,
+            half_height - 2*margin
         )
-        
-        # Draw footer section
-        self._draw_footer(canvas_obj)
-    
-    def _draw_footer(self, canvas_obj):
-        """Draw footer with Bank Details and Authorized Signature - A5 compact"""
-        data = getattr(self, 'footer_data', {})
-        company = data.get('company', {})
-        company_name = company.get('name') or company.get('companyName', 'Company Name')
-        
-        # Get bank details
-        bank_details = data.get('bankDetails', {})
-        bank_name = bank_details.get('bankName') or company.get('bankName', '')
-        account_number = bank_details.get('accountNumber') or company.get('accountNumber', '')
-        ifsc_code = bank_details.get('ifscCode') or company.get('ifscCode', '')
-        
-        # Calculate positions
-        margin = 2*mm
-        content_margin = margin + 1*mm
-        footer_top = 43*mm
-        content_width = self.page_width - 2*content_margin
-        
-        # Font sizes - smaller for A5
-        label_font_size = 5
-        value_font_size = 5
-        
-        mid_x = self.page_width / 2
-        
-        # Horizontal line above footer
-        canvas_obj.setStrokeColor(colors.HexColor('#1a5490'))
+
+        # Draw signatures at the bottom of the page border
+        # Position: just above the bottom border line
+        sig_y_position = half_height + margin + 3*mm  # 3mm above bottom border
+        sig_line_y = sig_y_position + 2*mm  # Line 2mm above text
+        sig_line_width = 35*mm  # Width of signature line
+
+        # Left signature: Receiver's Signature
+        left_sig_x = margin + 3*mm
         canvas_obj.setLineWidth(0.5)
-        canvas_obj.line(content_margin, footer_top, self.page_width - content_margin, footer_top)
-        
-        # Bank Details (left side)
-        canvas_obj.setFillColor(colors.HexColor('#666666'))
-        canvas_obj.setFont('Helvetica-Bold', label_font_size)
-        y_pos = footer_top - 3*mm
-        canvas_obj.drawString(content_margin + 1*mm, y_pos, "Bank Details")
-        
-        canvas_obj.setFont('Helvetica', value_font_size)
+        canvas_obj.line(left_sig_x, sig_line_y, left_sig_x + sig_line_width, sig_line_y)
+
+        # Draw text below the line
+        canvas_obj.setFont('Helvetica-Oblique', 6)
         canvas_obj.setFillColor(colors.black)
-        y_pos -= 3*mm
-        
-        if bank_name:
-            canvas_obj.drawString(content_margin + 1*mm, y_pos, f"Bank: {bank_name}")
-            y_pos -= 2.5*mm
-        if account_number:
-            canvas_obj.drawString(content_margin + 1*mm, y_pos, f"A/C: {account_number}")
-            y_pos -= 2.5*mm
-        if ifsc_code:
-            canvas_obj.drawString(content_margin + 1*mm, y_pos, f"IFSC: {ifsc_code}")
-        
-        # Vertical line
-        canvas_obj.line(mid_x, margin + 4*mm, mid_x, footer_top)
-        
-        # Authorized Signature (right side)
-        sig_center_x = mid_x + (content_width / 4)
-        
-        canvas_obj.setFont('Helvetica-Bold', value_font_size)
-        y_pos = footer_top - 3*mm
-        company_text = f"For {company_name[:20]}"
-        text_width = canvas_obj.stringWidth(company_text, 'Helvetica-Bold', value_font_size)
-        canvas_obj.drawString(sig_center_x - text_width/2, y_pos, company_text)
-        
-        # Signature line
-        y_pos = margin + 10*mm
-        line_width = 30*mm
-        canvas_obj.setLineWidth(0.5)
-        canvas_obj.line(sig_center_x - line_width/2, y_pos, sig_center_x + line_width/2, y_pos)
-        
-        # Label
-        canvas_obj.setFont('Helvetica', label_font_size)
-        canvas_obj.setFillColor(colors.HexColor('#666666'))
-        y_pos -= 2.5*mm
-        label_text = "Authorized Signatory"
-        text_width = canvas_obj.stringWidth(label_text, 'Helvetica', label_font_size)
-        canvas_obj.drawString(sig_center_x - text_width/2, y_pos, label_text)
+        canvas_obj.drawString(left_sig_x, sig_y_position, "Receiver's Signature")
+
+        # Right signature: Authorised Signatory
+        right_sig_x = self.page_width - margin - sig_line_width - 3*mm
+        canvas_obj.line(right_sig_x, sig_line_y, right_sig_x + sig_line_width, sig_line_y)
+        canvas_obj.drawRightString(self.page_width - margin - 3*mm, sig_y_position, "Authorised Signatory")
 
 
 def generate_invoice_pdf_a5(data, options, preview=False):
