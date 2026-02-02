@@ -214,7 +214,7 @@ class InvoicePDFA5Generator:
             
             # A4 margins - force content to top half (A5 Landscape area on A4)
             # A4 Height = 297mm. Half = ~148.5mm. Using 150mm bottom margin allows roughly 145mm height.
-            margins = {'right': 2*mm, 'left': 2*mm, 'top': 2*mm, 'bottom': 150*mm}
+            margins = {'right': 2*mm, 'left': 2*mm, 'top': 4*mm, 'bottom': 155*mm}
 
             # Create PDF title for metadata
             company_name = company.get('name') or company.get('companyName', 'Company')
@@ -303,17 +303,19 @@ class InvoicePDFA5Generator:
             ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
             ('LEFTPADDING', (0, 0), (-1, -1), 0),
             ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            # Horizontal line below the TAX INVOICE header
+            ('LINEBELOW', (0, 0), (-1, 0), 0.5, colors.black),
         ]))
         content.append(row1_table)
-        content.append(Spacer(1, 1*mm))
+        content.append(Spacer(1, 0.5*mm))
         
         # Row 2: Company details (left) | Billed to (right)
         content.extend(self._build_company_and_party_section(data))
-        content.append(Spacer(1, 2*mm))
-        
+        content.append(Spacer(1, 1*mm))
+
         # Row 3: Invoice No | Dated | Place of Supply
         content.extend(self._build_invoice_details_row(data))
-        content.append(Spacer(1, 2*mm))
+        content.append(Spacer(1, 1*mm))
         
         # Items table with tax columns
         content.extend(self._build_items_table(data))
@@ -325,11 +327,10 @@ class InvoicePDFA5Generator:
 
         # Grand Total row
         content.extend(self._build_grand_total_row(data))
-        content.append(Spacer(1, 2*mm))
+        content.append(Spacer(1, 1*mm))
         
         # Tax Summary table
         content.extend(self._build_tax_summary_table(data))
-
         return content
     
     def _build_company_and_party_section(self, data):
@@ -400,6 +401,8 @@ class InvoicePDFA5Generator:
             ('RIGHTPADDING', (0, 0), (-1, -1), 0),
             ('TOPPADDING', (0, 0), (-1, -1), 0),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            # Vertical line separating company and billed-to sections
+            ('LINEAFTER', (0, 0), (0, -1), 0.5, colors.black),
         ]))
         content.append(main_table)
         
@@ -510,6 +513,12 @@ class InvoicePDFA5Generator:
                 Paragraph(f"{line_total:,.2f}", self.styles['TableCellRight'])
             ])
         
+        # Pad with empty rows to ensure fixed height (minimum 12 item rows)
+        min_rows = 12
+        empty_row = ['', '', '', '', '', '', '', '', '', '', '']
+        while len(table_data) - 1 < min_rows:  # -1 for header row
+            table_data.append(empty_row)
+
         # Column widths proportional to content
         col_widths = [
             content_width * 0.04,   # S.N.
@@ -524,8 +533,12 @@ class InvoicePDFA5Generator:
             content_width * 0.08,   # SGST Amt
             content_width * 0.10    # Amount
         ]
-        
-        items_table = Table(table_data, colWidths=col_widths)
+
+        # Fixed row heights: header + data rows
+        item_row_height = 3.5*mm
+        row_heights = [4*mm] + [item_row_height] * (len(table_data) - 1)
+
+        items_table = Table(table_data, colWidths=col_widths, rowHeights=row_heights)
         
         items_table.setStyle(TableStyle([
             # Header row styling
@@ -614,21 +627,21 @@ class InvoicePDFA5Generator:
         round_off = float(summary.get('roundOff', 0) or 0)
         round_off_sign = "(+)" if round_off >= 0 else "(-)"
         
-        # Build addition rows - vertical stacked on right side
+        # Build addition rows - spacer + label + amount
         add_rows_data = [
-            [Paragraph(f"<i>Add : SGST @ {sgst_rate:.2f} %</i>", self.styles['ItalicText']),
+            ['', Paragraph(f"<i>Add : SGST @ {sgst_rate:.2f} %</i>", self.styles['ItalicText']),
              Paragraph(f"{total_sgst:,.2f}", self.styles['TableCellRight'])],
-            [Paragraph(f"<i>Add : CGST @ {cgst_rate:.2f} %</i>", self.styles['ItalicText']),
+            ['', Paragraph(f"<i>Add : CGST @ {cgst_rate:.2f} %</i>", self.styles['ItalicText']),
              Paragraph(f"{total_cgst:,.2f}", self.styles['TableCellRight'])],
-            [Paragraph(f"<i>Add : Rounded Off {round_off_sign}</i>", self.styles['ItalicText']),
+            ['', Paragraph(f"<i>Add : Rounded Off {round_off_sign}</i>", self.styles['ItalicText']),
              Paragraph(f"{abs(round_off):,.2f}", self.styles['TableCellRight'])]
         ]
 
-        # Two columns: label and amount, aligned to the right side of the page
-        col_widths = [content_width * 0.65, content_width * 0.15]
+        # Three columns: spacer, label and amount, with more horizontal space
+        col_widths = [content_width * 0.50, content_width * 0.30, content_width * 0.20]
 
-        # Set row heights to minimal for compact display
-        row_heights = [1.5*mm, 1.5*mm, 1.5*mm]
+        # Row heights with some breathing room
+        row_heights = [2.5*mm, 2.5*mm, 2.5*mm]
 
         add_table = Table(add_rows_data, colWidths=col_widths, rowHeights=row_heights)
         add_table.setStyle(TableStyle([
@@ -637,10 +650,10 @@ class InvoicePDFA5Generator:
             ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
             ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 2*mm),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('LEFTPADDING', (0, 0), (-1, -1), 1*mm),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 1*mm),
+            ('TOPPADDING', (0, 0), (-1, -1), 0.5*mm),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0.5*mm),
         ]))
         
         content.append(add_table)
@@ -815,41 +828,29 @@ class InvoicePDFA5Generator:
         canvas_obj.setLineWidth(0.5)
         margin = 2*mm
 
-        # Height of half page (roughly 148.5mm to 297mm in A4 coordinate space)
-        # Content is pushed to top half by bottom margin
-        # A4 Page: (0,0) is bottom left. (width, height) is top right.
-        # We want top half: y from height/2 to height.
-
-        half_height = self.page_height / 2
+        # A5 area with extra margin so two copies on one A4 have spacing
+        # Border inset: 5mm extra at bottom and 2mm extra at top vs pure half-page
+        border_bottom = self.page_height / 2 + 5*mm
+        border_top = self.page_height - 4*mm
+        border_height = border_top - border_bottom
 
         # Rect(x, y, width, height)
-        # Draw border around top half only
         canvas_obj.rect(
             margin,
-            half_height + margin,
+            border_bottom,
             self.page_width - 2*margin,
-            half_height - 2*margin
+            border_height
         )
 
-        # Draw signatures at the bottom of the page border
-        # Position: just above the bottom border line
-        sig_y_position = half_height + margin + 3*mm  # 3mm above bottom border
-        sig_line_y = sig_y_position + 2*mm  # Line 2mm above text
-        sig_line_width = 35*mm  # Width of signature line
-
-        # Left signature: Receiver's Signature
-        left_sig_x = margin + 3*mm
-        canvas_obj.setLineWidth(0.5)
-        canvas_obj.line(left_sig_x, sig_line_y, left_sig_x + sig_line_width, sig_line_y)
-
-        # Draw text below the line
+        # Draw signatures at the bottom of the page border (text only, matching HTML)
+        sig_y_position = border_bottom + 3*mm
         canvas_obj.setFont('Helvetica-Oblique', 6)
         canvas_obj.setFillColor(colors.black)
-        canvas_obj.drawString(left_sig_x, sig_y_position, "Receiver's Signature")
 
-        # Right signature: Authorised Signatory
-        right_sig_x = self.page_width - margin - sig_line_width - 3*mm
-        canvas_obj.line(right_sig_x, sig_line_y, right_sig_x + sig_line_width, sig_line_y)
+        # Left: Receiver's Signature
+        canvas_obj.drawString(margin + 3*mm, sig_y_position, "Receiver's Signature")
+
+        # Right: Authorised Signatory
         canvas_obj.drawRightString(self.page_width - margin - 3*mm, sig_y_position, "Authorised Signatory")
 
 
