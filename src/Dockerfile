@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY *.py .
 COPY models/ ./models/
 COPY services/ ./services/
+COPY pdf_generator/ ./pdf_generator/
 
 # Create uploads directory
 RUN mkdir -p uploads

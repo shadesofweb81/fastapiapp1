@@ -219,12 +219,69 @@ class TransactionPrintDto(BaseModel):
         populate_by_name = True
 
 
+class LedgerCounterEntryDto(BaseModel):
+    ledger_name: str = Field(default="", alias="ledgerName")
+    entry_type: str = Field(default="", alias="entryType")
+    amount: float = Field(default=0, alias="amount")
+
+    class Config:
+        populate_by_name = True
+
+
+class LedgerTransactionDto(BaseModel):
+    id: Optional[UUID] = Field(default=None, alias="id")
+    transaction_number: str = Field(default="", alias="transactionNumber")
+    invoice_number: Optional[str] = Field(default=None, alias="invoiceNumber")
+    transaction_date: str = Field(default="", alias="transactionDate")
+    type: str = Field(default="", alias="type")
+    status: str = Field(default="", alias="status")
+    party_name: str = Field(default="", alias="partyName")
+    notes: str = Field(default="", alias="notes")
+    entry_type: str = Field(default="", alias="entryType")
+    amount: float = Field(default=0, alias="amount")
+    running_balance: float = Field(default=0, alias="runningBalance")
+    counter_entries: List[LedgerCounterEntryDto] = Field(default_factory=list, alias="counterEntries")
+
+    class Config:
+        populate_by_name = True
+
+
+class LedgerPrintDto(BaseModel):
+    ledger_id: Optional[UUID] = Field(default=None, alias="ledgerId")
+    ledger_name: str = Field(default="", alias="ledgerName")
+    ledger_category: str = Field(default="", alias="ledgerCategory")
+    from_date: str = Field(default="", alias="fromDate")
+    to_date: str = Field(default="", alias="toDate")
+    opening_balance: float = Field(default=0, alias="openingBalance")
+    opening_balance_type: str = Field(default="", alias="openingBalanceType")
+    opening_balance_date: str = Field(default="", alias="openingBalanceDate")
+    transactions: List[LedgerTransactionDto] = Field(default_factory=list, alias="transactions")
+    total_debits: float = Field(default=0, alias="totalDebits")
+    total_credits: float = Field(default=0, alias="totalCredits")
+    closing_balance: float = Field(default=0, alias="closingBalance")
+    closing_balance_type: str = Field(default="", alias="closingBalanceType")
+    company: Optional[CompanyPrintDto] = Field(default=None, alias="company")
+
+    class Config:
+        populate_by_name = True
+
+
 class PrintSettings(BaseModel):
     paper_size: str = Field(default="A4", alias="paperSize")
     paper_copies: str = Field(default="1", alias="paperCopies")
     document_type: List[str] = Field(default_factory=list, alias="documentType")
-    save_path: str = Field(default="", alias="savePath")
     template: str = Field(default="default", alias="template")  # default, template_1, etc.
+
+    class Config:
+        populate_by_name = True
+
+
+class LedgerReportPrintSettings(BaseModel):
+    paper_copies: int = Field(default=1, alias="paper_copies")
+    paper_size: str = Field(default="A4", alias="paper_size")
+    show_items: bool = Field(default=True, alias="show_items")
+    show_narration: bool = Field(default=True, alias="show_narration")
+    show_balance: bool = Field(default=True, alias="show_balance")
 
     class Config:
         populate_by_name = True

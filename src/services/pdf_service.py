@@ -4,10 +4,13 @@ from typing import Dict, Any
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
 
-from invoice_pdf_generator import generate_invoice_pdf
-from invoice_pdf_generator_a5 import generate_invoice_pdf_a5
-from invoice_pdf_a4_template_1 import generate_invoice_pdf_template_1
-from models import TransactionPrintDto, PrintSettings
+from pdf_generator import (
+    generate_invoice_pdf,
+    generate_invoice_pdf_a5,
+    generate_invoice_pdf_template_1,
+    generate_ledger_pdf
+)
+from models import TransactionPrintDto, LedgerPrintDto, PrintSettings, LedgerReportPrintSettings
 
 
 class PDFService:
@@ -20,7 +23,7 @@ class PDFService:
         Args:
             upload_dir: Path to the upload directory
         """
-        self.upload_dir = upload_dir
+        self.upload_dir = upload_dir.absolute()
         self.upload_dir.mkdir(exist_ok=True)
 
     def generate_transaction_pdf(
@@ -154,6 +157,79 @@ class PDFService:
             raise HTTPException(
                 status_code=500,
                 detail=f"Error generating PDF: {str(e)}"
+            )
+
+    def generate_ledger_pdf_report(
+        self,
+        ledger_data: LedgerPrintDto,
+        print_settings: LedgerReportPrintSettings = None
+    ) -> Dict[str, Any]:
+        """
+        Generate PDF for a ledger statement
+
+        Args:
+            ledger_data: The ledger data
+            print_settings: Print settings for ledger report
+
+        Returns:
+            Dictionary with download link and file information
+
+        Raises:
+            HTTPException: If PDF generation fails
+        """
+        try:
+            if print_settings is None:
+                print_settings = LedgerReportPrintSettings()
+
+            ledger_name = ledger_data.ledger_name or "ledger"
+            import re
+            safe_name = re.sub(r'[\\/:*?"<>|\s]+', '_', str(ledger_name)).strip('_')
+
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"ledger_{safe_name}_{timestamp}.pdf"
+
+            ledger_dict = ledger_data.model_dump(mode='json', by_alias=True)
+
+            options = {
+                'paper_size': print_settings.paper_size,
+                'copies': print_settings.paper_copies,
+                'show_items': print_settings.show_items,
+                'show_narration': print_settings.show_narration,
+                'show_balance': print_settings.show_balance,
+                'save_file': True,
+                'save_location': str(self.upload_dir),
+                'filename': filename,
+            }
+
+            pdf_path = generate_ledger_pdf(ledger_dict, options, preview=False)
+            pdf_file = Path(pdf_path)
+
+            if not pdf_file.exists():
+                raise HTTPException(status_code=500, detail="Ledger PDF generation failed")
+
+            file_size = pdf_file.stat().st_size
+            size_str = self._format_file_size(file_size)
+
+            download_url = f"/api/images/download/{pdf_file.name}"
+            open_url = f"/api/pdf/open/{pdf_file.name}"
+
+            return {
+                "status": "success",
+                "message": "Ledger PDF generated successfully",
+                "ledger_name": ledger_name,
+                "filename": pdf_file.name,
+                "file_size": size_str,
+                "download_url": download_url,
+                "open_url": open_url,
+                "full_path": str(pdf_file.absolute())
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error generating ledger PDF: {str(e)}"
             )
 
     def open_pdf(self, filename: str) -> FileResponse:

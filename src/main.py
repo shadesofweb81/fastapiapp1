@@ -2,12 +2,12 @@ from pathlib import Path
 from typing import Union
 from datetime import datetime
 
-from fastapi import FastAPI, File, UploadFile, Request
+from fastapi import FastAPI, File, UploadFile, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from models import TransactionPrintDto, PrintSettings
+from models import TransactionPrintDto, LedgerPrintDto, PrintSettings, LedgerReportPrintSettings
 from services import FileService, PDFService, UIService
 
 
@@ -134,8 +134,8 @@ async def validation_exception_handler(request: Request, exc):
 
 @app.post("/api/pdf/generate-pdf")
 async def generate_transaction_pdf(
-    transaction_data: TransactionPrintDto,
-    print_settings: PrintSettings = None
+    transaction_data: TransactionPrintDto = Body(...),
+    print_settings: PrintSettings = Body(default=None)
 ):
     """
     Generate PDF for a transaction from the provided transaction data
@@ -148,6 +148,30 @@ async def generate_transaction_pdf(
         JSON with download link and file information
     """
     return pdf_service.generate_transaction_pdf(transaction_data, print_settings)
+
+
+@app.post("/api/pdf/generate-ledger-pdf")
+async def generate_ledger_pdf(
+    ledger_data: LedgerPrintDto = Body(...),
+    print_settings: LedgerReportPrintSettings = Body(default=None)
+):
+    """
+    Generate PDF for a ledger statement from the provided ledger data
+
+    Args:
+        ledger_data: The complete ledger data (LedgerPrintDto)
+        print_settings: Print settings including paper size, copies, and display options (LedgerReportPrintSettings)
+            - copies: Number of copies (default: 1)
+            - printSize: Paper size A4/A5 (default: A4)
+            - showItems: Show transaction items (default: true)
+            - showNarration: Show narration/notes (default: true)
+            - showBalance: Show balance column (default: true)
+            - savePath: Path to save the PDF
+
+    Returns:
+        JSON with download link and file information
+    """
+    return pdf_service.generate_ledger_pdf_report(ledger_data, print_settings)
 
 
 if __name__ == "__main__":
